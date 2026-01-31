@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev": "pnpm -r --parallel --filter \"./apps/**\" dev",
+    "dev:web": "pnpm -C apps/web dev",
+    "dev:seller": "pnpm -C apps/seller dev",
+    "dev:admin": "pnpm -C apps/admin dev",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
