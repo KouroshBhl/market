@@ -23,6 +23,12 @@ enum DeliveryType {
   MANUAL
 }
 
+enum ProductStatus {
+  draft
+  active
+  inactive
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -54,19 +60,55 @@ model Category {
 }
 
 model Product {
-  id              String       @id @default(uuid())
-  status          String       @default("DRAFT")
-  deliveryType    DeliveryType
-  categoryId      String?      @map("category_id")
+  id              String        @id @default(uuid())
+  sellerId        String        @map("seller_id") // Future: FK to User when seller role added
+  status          ProductStatus @default(draft)
+  deliveryType    DeliveryType  @map("delivery_type")
+  categoryId      String?       @map("category_id")
   title           String?
   description     String?
-  basePrice       Int?
-  baseCurrency    Currency?
-  displayCurrency Currency?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  priceAmount     Int?          @map("price_amount") // In smallest currency unit (cents)
+  currency        Currency?
+  publishedAt     DateTime?     @map("published_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category            Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  autoKeyConfig       ProductAutoKeyConfig?
+  manualDeliveryConfig ProductManualDeliveryConfig?
 
+  // Indexes for querying
+  @@index([sellerId, status])
   @@index([categoryId])
+  @@index([status, publishedAt])
+  @@map("products")
+}
+
+// Delivery configuration for AUTO_KEY products
+model ProductAutoKeyConfig {
+  id              String   @id @default(uuid())
+  productId       String   @unique @map("product_id")
+  keyPoolId       String?  @map("key_pool_id") // Future: FK to key pool
+  autoDelivery    Boolean  @default(true) @map("auto_delivery")
+  stockAlert      Int?     @map("stock_alert") // Alert when stock falls below this
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_auto_key_configs")
+}
+
+// Delivery configuration for MANUAL products
+model ProductManualDeliveryConfig {
+  id                  String   @id @default(uuid())
+  productId           String   @unique @map("product_id")
+  deliveryInstructions String?  @map("delivery_instructions") @db.Text
+  estimatedDeliverySLA Int?     @map("estimated_delivery_sla") // In hours
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_manual_delivery_configs")
 }
