@@ -8,6 +8,6 @@
       "@workspace/ui/*": ["./src/*"]
     }
   },
-  "include": ["."],
+  "include": [".", "../../apps/seller/components/ui/app-sidebar.tsx"],
   "exclude": ["node_modules", "dist"]
 }

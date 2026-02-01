@@ -2,7 +2,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 
 import './globals.css';
 import { Providers } from '@/components/providers';
-import { AppSidebar, SidebarProvider, SidebarInset } from '@workspace/ui';
+import { SidebarProvider, SidebarInset } from '@workspace/ui';
+import { AppSidebar } from '@/components/ui/app-sidebar';
 const fontSans = Geist({
   subsets: ['latin'],
   variable: '--font-sans',
