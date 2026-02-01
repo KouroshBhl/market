@@ -29,10 +29,35 @@ model User {
   createdAt DateTime @default(now())
 }
 
+model Category {
+  id        String     @id @default(uuid())
+  parentId  String?    @map("parent_id")
+  name      String
+  slug      String
+  isActive  Boolean    @default(true) @map("is_active")
+  sortOrder Int        @default(0) @map("sort_order")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  // Self-reference for parent-child relationship
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  // Constraints
+  @@unique([slug, parentId], name: "unique_slug_per_level")
+  @@index([parentId])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@index([isActive, parentId])
+  @@map("categories")
+}
+
 model Product {
   id              String       @id @default(uuid())
   status          String       @default("DRAFT")
   deliveryType    DeliveryType
+  categoryId      String?      @map("category_id")
   title           String?
   description     String?
   basePrice       Int?
@@ -40,4 +65,8 @@ model Product {
   displayCurrency Currency?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId])
 }

@@ -17,3 +17,6 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Export types
 export * from '@prisma/client';
+
+// Export category helpers
+export * from './category-helpers';

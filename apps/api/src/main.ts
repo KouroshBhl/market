@@ -18,22 +18,47 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
   });
 
-  // Swagger setup
-  const config = new DocumentBuilder()
+  // Swagger/OpenAPI setup
+  const swaggerConfig = new DocumentBuilder()
     .setTitle(configService.get<string>('app.name') || 'Market API')
-    .setDescription('Market monorepo API')
-    .setVersion(configService.get<string>('app.version') || '0.0.1')
+    .setDescription('Market monorepo API - Auto-generated documentation')
+    .setVersion(configService.get<string>('app.version') || '1.0.0')
+    .addTag('Categories', 'Category management endpoints')
+    .addTag('Products', 'Product management endpoints')
     .addTag('Health', 'Health check endpoints')
     .addTag('Version', 'Version information endpoints')
-    .addTag('Products', 'Product management endpoints')
+    .addServer('http://localhost:4000', 'Development server')
+    .addServer('http://localhost:4000', 'Local server')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  
+  // Serve Swagger UI at /docs
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: 'Market API Documentation',
+    customfavIcon: 'https://nestjs.com/img/logo_text.svg',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+    ],
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    ],
+  });
+
+  // Expose raw OpenAPI JSON at /api/openapi.json
+  // This is done by creating a simple GET handler
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/api/openapi.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send(document);
+  });
 
   await app.listen(port);
   console.log(`🚀 API running on: http://localhost:${port}`);
-  console.log(`📚 Swagger docs: http://localhost:${port}/docs`);
+  console.log(`📚 Swagger UI: http://localhost:${port}/docs`);
+  console.log(`📄 OpenAPI JSON: http://localhost:${port}/api/openapi.json`);
 }
 
 bootstrap();

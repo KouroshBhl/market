@@ -5,6 +5,8 @@ import { validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { VersionModule } from './version/version.module';
 import { ProductsModule } from './products/products.module';
+import { CategoriesModule } from './categories/categories.module';
+import { OpenApiModule } from './openapi/openapi.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { ProductsModule } from './products/products.module';
     HealthModule,
     VersionModule,
     ProductsModule,
+    CategoriesModule,
+    OpenApiModule,
   ],
 })
 export class AppModule {}
