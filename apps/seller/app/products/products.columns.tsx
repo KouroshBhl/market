@@ -25,9 +25,11 @@ export const columns: ColumnDef<Product>[] = [
       const status = row.getValue("status") as string | undefined
       if (!status) return <span className="text-muted-foreground text-xs">-</span>
       
+      const variant = status === "draft" ? "warning" : status === "active" ? "success" : "secondary"
+      
       return (
-        <Badge variant={status === "DRAFT" ? "warning" : "success"}>
-          {status}
+        <Badge variant={variant}>
+          {status.toUpperCase()}
         </Badge>
       )
     },
@@ -51,32 +53,20 @@ export const columns: ColumnDef<Product>[] = [
     },
   },
   {
-    accessorKey: "basePrice",
+    accessorKey: "priceAmount",
     header: "Price",
     cell: ({ row }) => {
-      const basePrice = row.getValue("basePrice") as number | null
-      const baseCurrency = row.original.baseCurrency
+      const priceAmount = row.getValue("priceAmount") as number | null
+      const currency = row.original.currency
       
-      if (basePrice === null || !baseCurrency) {
+      if (priceAmount === null || !currency) {
         return <span className="text-muted-foreground text-xs">No price</span>
       }
       
       return (
         <div className="font-medium">
-          {(basePrice / 100).toFixed(2)} {baseCurrency}
+          {(priceAmount / 100).toFixed(2)} {currency}
         </div>
-      )
-    },
-  },
-  {
-    accessorKey: "displayCurrency",
-    header: "Display",
-    cell: ({ row }) => {
-      const displayCurrency = row.getValue("displayCurrency") as string | null
-      return displayCurrency ? (
-        <span className="text-sm text-muted-foreground">{displayCurrency}</span>
-      ) : (
-        <span className="text-muted-foreground text-xs">-</span>
       )
     },
   },

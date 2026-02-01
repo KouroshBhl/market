@@ -11,9 +11,19 @@ import { HealthResponseSchema } from './schemas/health.schema';
 import { VersionResponseSchema } from './schemas/version.schema';
 import { UserSchema } from './schemas/user.schema';
 import { CurrencySchema } from './schemas/currency.schema';
-import { ProductSchema, CreateProductSchema } from './schemas/product.schema';
+import { 
+  ProductSchema, 
+  ProductStatusSchema,
+  AutoKeyConfigSchema,
+  ManualDeliveryConfigSchema 
+} from './schemas/product.schema';
 import { DeliveryTypeSchema } from './schemas/delivery-type.schema';
-import { ProductDraftSchema, CreateProductDraftSchema } from './schemas/product-draft.schema';
+import { 
+  ProductDraftSchema, 
+  SaveProductDraftSchema,
+  UpdateProductDraftSchema,
+  UpdateProductStatusSchema 
+} from './schemas/product-draft.schema';
 
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
@@ -21,7 +31,11 @@ registry.register('VersionResponse', VersionResponseSchema);
 registry.register('User', UserSchema);
 registry.register('Currency', CurrencySchema);
 registry.register('Product', ProductSchema);
-registry.register('CreateProduct', CreateProductSchema);
+registry.register('ProductStatus', ProductStatusSchema);
 registry.register('DeliveryType', DeliveryTypeSchema);
 registry.register('ProductDraft', ProductDraftSchema);
-registry.register('CreateProductDraft', CreateProductDraftSchema);
+registry.register('SaveProductDraft', SaveProductDraftSchema);
+registry.register('UpdateProductDraft', UpdateProductDraftSchema);
+registry.register('UpdateProductStatus', UpdateProductStatusSchema);
+registry.register('AutoKeyConfig', AutoKeyConfigSchema);
+registry.register('ManualDeliveryConfig', ManualDeliveryConfigSchema);
