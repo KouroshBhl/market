@@ -20,3 +20,4 @@ export * from './components/tooltip';
 export * from './components/collapsible';
 export * from './components/table';
 export * from './components/badge';
+export * from './components/alert';
