@@ -6,16 +6,19 @@ extendZodWithOpenApi(z);
 
 export const ProductSchema = z.object({
   id: z.string().uuid(),
-  title: z.string(),
+  status: z.string().optional(),
+  deliveryType: z.enum(['AUTO_KEY', 'MANUAL']).optional(),
+  title: z.string().nullable(),
   description: z.string().nullable(),
-  basePrice: z.number().int(),
-  baseCurrency: CurrencySchema,
-  displayCurrency: CurrencySchema,
+  basePrice: z.number().int().nullable(),
+  baseCurrency: CurrencySchema.nullable(),
+  displayCurrency: CurrencySchema.nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 }).openapi('Product');
 
 export const CreateProductSchema = z.object({
+  deliveryType: z.enum(['AUTO_KEY', 'MANUAL']),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   basePrice: z.number().int().nonnegative('Price must be non-negative'),

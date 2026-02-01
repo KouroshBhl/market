@@ -12,6 +12,8 @@ import { VersionResponseSchema } from './schemas/version.schema';
 import { UserSchema } from './schemas/user.schema';
 import { CurrencySchema } from './schemas/currency.schema';
 import { ProductSchema, CreateProductSchema } from './schemas/product.schema';
+import { DeliveryTypeSchema } from './schemas/delivery-type.schema';
+import { ProductDraftSchema, CreateProductDraftSchema } from './schemas/product-draft.schema';
 
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
@@ -20,3 +22,6 @@ registry.register('User', UserSchema);
 registry.register('Currency', CurrencySchema);
 registry.register('Product', ProductSchema);
 registry.register('CreateProduct', CreateProductSchema);
+registry.register('DeliveryType', DeliveryTypeSchema);
+registry.register('ProductDraft', ProductDraftSchema);
+registry.register('CreateProductDraft', CreateProductDraftSchema);

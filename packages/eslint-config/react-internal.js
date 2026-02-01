@@ -38,4 +38,29 @@ export const config = [
       "react/prop-types": "off",
     },
   },
+  {
+    files: ["**/*.tsx", "**/*.jsx"],
+    ignores: ["**/node_modules/**", "**/dist/**", "**/.next/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXOpeningElement[name.name="button"]',
+          message: 'Use <Button> from @workspace/ui instead of raw <button> elements. Import: import { Button } from "@workspace/ui"',
+        },
+        {
+          selector: 'JSXOpeningElement[name.name="input"]',
+          message: 'Use <Input> from @workspace/ui instead of raw <input> elements. Import: import { Input } from "@workspace/ui"',
+        },
+        {
+          selector: 'JSXOpeningElement[name.name="select"]',
+          message: 'Use <Select> from @workspace/ui instead of raw <select> elements. Import: import { Select } from "@workspace/ui"',
+        },
+        {
+          selector: 'JSXOpeningElement[name.name="textarea"]',
+          message: 'Use <Textarea> from @workspace/ui instead of raw <textarea> elements. Import: import { Textarea} from "@workspace/ui"',
+        },
+      ],
+    },
+  },
 ]

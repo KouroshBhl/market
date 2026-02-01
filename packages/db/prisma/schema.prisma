@@ -18,6 +18,11 @@ enum Currency {
   IRR
 }
 
+enum DeliveryType {
+  AUTO_KEY
+  MANUAL
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -25,12 +30,14 @@ model User {
 }
 
 model Product {
-  id              String   @id @default(uuid())
-  title           String
+  id              String       @id @default(uuid())
+  status          String       @default("DRAFT")
+  deliveryType    DeliveryType
+  title           String?
   description     String?
-  basePrice       Int
-  baseCurrency    Currency
-  displayCurrency Currency @default(USD)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  basePrice       Int?
+  baseCurrency    Currency?
+  displayCurrency Currency?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
