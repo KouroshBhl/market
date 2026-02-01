@@ -10,10 +10,12 @@ async function bootstrap() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
   const corsOrigins = configService.get<string[]>('cors.origins') || ['http://localhost:3000'];
 
-  // Enable CORS
+  // Enable CORS - allow all origins in development for simplicity
   app.enableCors({
-    origin: corsOrigins,
+    origin: true, // Allow all origins
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
   });
 
   // Swagger setup
@@ -23,6 +25,7 @@ async function bootstrap() {
     .setVersion(configService.get<string>('app.version') || '0.0.1')
     .addTag('Health', 'Health check endpoints')
     .addTag('Version', 'Version information endpoints')
+    .addTag('Products', 'Product management endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

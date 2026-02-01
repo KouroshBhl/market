@@ -9,6 +9,6 @@ export default () => ({
     url: process.env.DATABASE_URL,
   },
   cors: {
-    origins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origins: process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || ['http://localhost:3000'],
   },
 });
