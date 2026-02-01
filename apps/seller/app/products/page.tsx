@@ -1,246 +1,270 @@
-'use client';
+"use client"
 
-import { useState, useEffect } from 'react';
-import type { Product, CreateProduct, Currency } from '@workspace/contracts';
-import { getProducts, createProduct } from '@/lib/api';
-import { Button, Input, Label, Select, Textarea, Card } from '@workspace/ui';
-
-const CURRENCIES: Currency[] = ['USD', 'EUR', 'UAH', 'RUB', 'IRR'];
+import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnFiltersState,
+  type SortingState,
+} from "@tanstack/react-table"
+import { Product } from "@workspace/contracts"
+import { getProducts } from "@/lib/api"
+import { columns } from "./products.columns"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Button,
+  Input,
+  Select,
+  Card,
+  SidebarTrigger,
+  Separator,
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@workspace/ui"
+import { RefreshCw } from "lucide-react"
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [globalFilter, setGlobalFilter] = React.useState("")
+  const [pagination, setPagination] = React.useState({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
-  const [formData, setFormData] = useState<CreateProduct>({
-    deliveryType: 'MANUAL',
-    title: '',
-    description: '',
-    basePrice: 0,
-    baseCurrency: 'USD',
-    displayCurrency: 'USD',
-  });
+  const { data: products = [], isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ["products"],
+    queryFn: getProducts,
+  })
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  const table = useReactTable({
+    data: products,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, columnId, filterValue) => {
+      const title = row.getValue("title") as string | null
+      return title?.toLowerCase().includes(filterValue.toLowerCase()) ?? false
+    },
+  })
 
-  async function loadProducts() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getProducts();
-      setProducts(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      // Remove empty description
-      const payload: CreateProduct = {
-        ...formData,
-        description: formData.description?.trim() || undefined,
-      };
-
-      await createProduct(payload);
-
-      // Reset form
-      setFormData({
-        deliveryType: 'MANUAL',
-        title: '',
-        description: '',
-        basePrice: 0,
-        baseCurrency: 'USD',
-        displayCurrency: 'USD',
-      });
-
-      // Reload products
-      await loadProducts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create product');
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const statusFilter = (columnFilters.find(f => f.id === "status")?.value as string) || "ALL"
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="container mx-auto max-w-6xl">
-        <h1 className="text-3xl font-bold mb-8 text-gray-900">Products</h1>
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Products</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </header>
 
-      {/* Create Product Actions */}
-      <Card className="p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Product</h2>
-          <Button asChild>
-            <a href="/products/new">+ New Product</a>
-          </Button>
-        </div>
-        <p className="text-gray-600 text-sm">Click &quot;New Product&quot; to start creating a product with delivery type selection</p>
-      </Card>
-
-      {/* Legacy Create Product Form */}
-      <Card className="p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900">Quick Create (Legacy)</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Product name"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Optional description"
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="basePrice">Base Price (in smallest unit, e.g., cents) *</Label>
-            <Input
-              id="basePrice"
-              type="number"
-              required
-              min="0"
-              value={formData.basePrice}
-              onChange={(e) => setFormData({ ...formData, basePrice: parseInt(e.target.value) || 0 })}
-              placeholder="9999"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="baseCurrency">Base Currency *</Label>
-              <Select
-                id="baseCurrency"
-                required
-                value={formData.baseCurrency}
-                onChange={(e) => setFormData({ ...formData, baseCurrency: e.target.value as Currency })}
-              >
-                {CURRENCIES.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </Select>
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        <div className="mx-auto w-full max-w-7xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">Products</h1>
+              <p className="text-muted-foreground">Manage your product catalog</p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="displayCurrency">Display Currency *</Label>
-              <Select
-                id="displayCurrency"
-                required
-                value={formData.displayCurrency}
-                onChange={(e) => setFormData({ ...formData, displayCurrency: e.target.value as Currency })}
-              >
-                {CURRENCIES.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <Button onClick={() => window.location.href = '/products/new'}>
+              + New Product
+            </Button>
           </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 border-2 border-red-300 rounded-md text-red-800 text-sm font-medium">
-              {error}
-            </div>
-          )}
-
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? 'Creating...' : 'Create Product'}
-          </Button>
-        </form>
-      </Card>
-
-      {/* Products List */}
-      <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900">Products List</h2>
-
-          {loading ? (
-            <p className="text-gray-600">Loading products...</p>
-          ) : products.length === 0 ? (
-            <p className="text-gray-600">No products yet. Create one above!</p>
-          ) : (
-            <div className="space-y-4">
-              {products.map((product) => (
-              <div
-                key={product.id}
-                className="border-2 border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-gray-900">
-                      {product.title || <span className="text-gray-400 italic">[Draft - No Title]</span>}
-                    </h3>
-                    {product.status && (
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        product.status === 'DRAFT' 
-                          ? 'bg-yellow-100 text-yellow-800' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {product.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    {product.basePrice !== null && product.baseCurrency ? (
-                      <>
-                        <div className="text-lg font-bold text-gray-900">
-                          {(product.basePrice / 100).toFixed(2)} {product.baseCurrency}
-                        </div>
-                        {product.displayCurrency && (
-                          <div className="text-xs text-gray-600">
-                            Display: {product.displayCurrency}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-sm text-gray-400 italic">No price set</div>
-                    )}
-                  </div>
-                </div>
-
-                {product.description && (
-                  <p className="text-gray-700 text-sm mb-2">{product.description}</p>
-                )}
-
-                <div className="flex gap-4 text-xs text-gray-500 mt-2">
-                  {product.deliveryType && (
-                    <span className="bg-gray-100 px-2 py-1 rounded">
-                      {product.deliveryType === 'AUTO_KEY' ? '🔑 Auto Key' : '👤 Manual'}
-                    </span>
-                  )}
-                  <span>ID: {product.id.slice(0, 8)}...</span>
-                  <span>Created: {new Date(product.createdAt).toLocaleString()}</span>
-                </div>
+          <Card className="p-6">
+            {/* Filters and Controls */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Search products by title..."
+                  value={globalFilter}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="max-w-sm"
+                />
               </div>
-              ))}
+              
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === "ALL") {
+                    setColumnFilters(prev => prev.filter(f => f.id !== "status"))
+                  } else {
+                    setColumnFilters(prev => [
+                      ...prev.filter(f => f.id !== "status"),
+                      { id: "status", value }
+                    ])
+                  }
+                }}
+              >
+                <option value="ALL">All Status</option>
+                <option value="DRAFT">Draft</option>
+                <option value="ACTIVE">Active</option>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
-          )}
-        </Card>
+
+            {/* Table */}
+            <div className="rounded-md border">
+              {isLoading ? (
+                <div className="p-8 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+                  <p className="mt-2 text-muted-foreground">Loading products...</p>
+                </div>
+              ) : error ? (
+                <div className="p-8 text-center">
+                  <p className="text-destructive mb-4">
+                    Failed to load products: {error instanceof Error ? error.message : 'Unknown error'}
+                  </p>
+                  <Button onClick={() => refetch()}>Retry</Button>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {table.getRowModel().rows?.length ? (
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            data-state={row.getIsSelected() && "selected"}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id}>
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={columns.length}
+                            className="h-24 text-center"
+                          >
+                            No products found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between px-4 py-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        Rows per page:
+                      </span>
+                      <Select
+                        value={table.getState().pagination.pageSize.toString()}
+                        onChange={(e) => {
+                          table.setPageSize(Number(e.target.value))
+                        }}
+                      >
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        Page {table.getState().pagination.pageIndex + 1} of{" "}
+                        {table.getPageCount() || 1}
+                      </span>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => table.previousPage()}
+                          disabled={!table.getCanPreviousPage()}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => table.nextPage()}
+                          disabled={!table.getCanNextPage()}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Stats */}
+            <div className="mt-4 text-sm text-muted-foreground">
+              Showing {table.getRowModel().rows.length} of {products.length} products
+            </div>
+          </Card>
+        </div>
       </div>
-    </div>
-  );
+    </>
+  )
 }

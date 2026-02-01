@@ -18,3 +18,5 @@ export * from './components/sheet';
 export * from './components/skeleton';
 export * from './components/tooltip';
 export * from './components/collapsible';
+export * from './components/table';
+export * from './components/badge';

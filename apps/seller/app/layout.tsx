@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { QueryProvider } from '@/components/query-provider';
 import { SidebarProvider, SidebarInset } from '@workspace/ui';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 const fontSans = Geist({
@@ -24,12 +25,14 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
       >
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <Providers>{children}</Providers>
-          </SidebarInset>
-        </SidebarProvider>
+        <QueryProvider>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset>
+              <Providers>{children}</Providers>
+            </SidebarInset>
+          </SidebarProvider>
+        </QueryProvider>
       </body>
     </html>
   );
