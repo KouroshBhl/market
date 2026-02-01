@@ -12,6 +12,7 @@
     "dev:api": "pnpm --filter api dev",
     "start:api": "pnpm --filter api start",
     "lint": "turbo lint",
+    "lint:ui": "turbo lint --filter=\"./apps/*\"",
     "typecheck": "turbo check-types",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:generate": "pnpm --filter @workspace/db db:generate",

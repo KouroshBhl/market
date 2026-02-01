@@ -1,0 +1,88 @@
+# ===============================
+
+# CURSOR RULES — NON-NEGOTIABLE
+
+# ===============================
+
+# ---- Scope & Safety ----
+
+- ONLY touch files explicitly mentioned in the task.
+- NO silent refactors. If rename/move is required, say it.
+- NO new dependencies unless explicitly requested.
+- NO deep imports from UI. Always import from "@workspace/ui".
+
+# ---- Monorepo Boundaries ----
+
+- packages/ui:
+  - ONLY stateless UI primitives (shadcn-based).
+  - FORBIDDEN: React Query, TanStack Table logic, business hooks, API calls.
+- packages/contracts:
+  - ONLY Zod schemas + inferred types.
+  - FORBIDDEN: fetch, env access, runtime logic.
+- packages/db:
+  - ONLY Prisma schema/client.
+- apps/\*:
+  - App state, React Query providers, TanStack Table columns, business flows, API calls.
+
+# ---- UI / Theme Rules (STRICT) ----
+
+- FORBIDDEN hardcoded Tailwind colors anywhere in apps/\*:
+  - bg-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\*
+  - text-(same)-\*
+  - border-(same)-\*
+  - ring-(same)-\*
+  - from-_, via-_, to-\* (gradients)
+- ALLOWED ONLY semantic tokens:
+  - bg-background, bg-card, bg-accent
+  - text-foreground, text-muted-foreground, text-accent-foreground
+  - border-border, ring-ring
+  - bg-destructive, text-destructive-foreground
+- NO raw controls in apps/\*:
+  - FORBIDDEN: <button>, <input>, <select>, <textarea>
+  - REQUIRED: use components from "@workspace/ui" (Button/Input/Select/…)
+- Prefer component variants over classes (e.g., <Badge variant="success" />).
+
+# ---- Accessibility ----
+
+- Interactive elements must be keyboard accessible.
+- Use proper roles/aria when applicable.
+- Avoid <div role="button">; use real components.
+
+# ---- Data & API ----
+
+- Frontend NEVER uses DB types directly.
+- All API req/res conform to @workspace/contracts.
+- Dates from API are ISO strings.
+- Money: NO floats. Use Int/Decimal correctly.
+
+# ---- React Query ----
+
+- Provider scoped to where needed (prefer dashboard layout, not root).
+- Stable query keys: ["products"], ["product", id].
+- Mutations must invalidate/refetch appropriately.
+
+# ---- TanStack Table ----
+
+- Column defs live in separate \*.columns.tsx.
+- Keep table state (sorting/filter/pagination) separate from server state.
+- MVP: client-side only. Server-side later if needed.
+
+# ---- UX Minimum ----
+
+- Every action has loading, error (retry), and empty states.
+- Wizards:
+  - Create draft first.
+  - PATCH per step.
+  - Publish last.
+
+# ---- Output Contract ----
+
+- Always list files changed.
+- Provide commands to run/test.
+- Provide a quick verification checklist.
+
+# ===============================
+
+# END RULES
+
+# ===============================

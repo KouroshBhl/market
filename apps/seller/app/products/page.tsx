@@ -12,7 +12,6 @@ import {
   type ColumnFiltersState,
   type SortingState,
 } from "@tanstack/react-table"
-import { Product } from "@workspace/contracts"
 import { getProducts } from "@/lib/api"
 import { columns } from "./products.columns"
 import {

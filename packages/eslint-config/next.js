@@ -7,6 +7,7 @@ import globals from "globals"
 import tseslint from "typescript-eslint"
 
 import { config as baseConfig } from "./base.js"
+import { themeTokensConfig } from "./theme-tokens.js"
 
 /**
  * A custom ESLint configuration for libraries that use Next.js.
@@ -15,6 +16,7 @@ import { config as baseConfig } from "./base.js"
  * */
 export const nextJsConfig = [
   ...baseConfig,
+  themeTokensConfig,
   js.configs.recommended,
   eslintConfigPrettier,
   ...tseslint.configs.recommended,
