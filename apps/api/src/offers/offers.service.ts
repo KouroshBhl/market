@@ -66,9 +66,19 @@ export class OffersService {
    * Save or update an offer draft
    */
   async saveDraft(data: SaveOfferDraft): Promise<Offer> {
+    // Validate delivery capabilities if variant and deliveryType are provided
+    if (data.variantId && data.deliveryType) {
+      await this.validateDeliveryCapability(data.variantId, data.deliveryType);
+    }
+
     // If ID provided, update existing draft
     if (data.id) {
       return this.updateExistingDraft(data.id, data);
+    }
+
+    // For new drafts, deliveryType is required
+    if (!data.deliveryType) {
+      throw new BadRequestException('Delivery type is required');
     }
 
     // Otherwise create new draft
@@ -108,10 +118,19 @@ export class OffersService {
       throw new BadRequestException('Only draft offers can be updated');
     }
 
+    // Validate delivery capabilities if variant or deliveryType are being changed
+    const finalVariantId = data.variantId !== undefined ? data.variantId : existing.variantId;
+    const finalDeliveryType = data.deliveryType !== undefined ? data.deliveryType : existing.deliveryType;
+    
+    if (finalVariantId && finalDeliveryType) {
+      await this.validateDeliveryCapability(finalVariantId, finalDeliveryType);
+    }
+
     const offer = await prisma.offer.update({
       where: { id },
       data: {
         ...(data.variantId !== undefined && { variantId: data.variantId }),
+        ...(data.deliveryType !== undefined && { deliveryType: data.deliveryType }),
         ...(data.priceAmount !== undefined && { priceAmount: data.priceAmount }),
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.stockCount !== undefined && { stockCount: data.stockCount }),
@@ -138,21 +157,25 @@ export class OffersService {
       throw new BadRequestException('Invalid or inactive variant');
     }
 
+    // Validate delivery capabilities
+    await this.validateDeliveryCapability(data.variantId, data.deliveryType);
+
     // Validate delivery type requirements
-    // Note: For MVP, these are optional since key pool system isn't implemented yet
-    // TODO: Re-enable strict validation once key pool management is implemented
-    
-    // Soft validation - log warnings but don't block
-    if (data.deliveryType === 'MANUAL' && !data.deliveryInstructions) {
-      console.warn(
-        `[WARN] Offer published without delivery instructions (seller: ${data.sellerId})`,
-      );
+    if (data.deliveryType === 'MANUAL') {
+      if (!data.deliveryInstructions || data.deliveryInstructions.trim() === '') {
+        throw new BadRequestException(
+          'Delivery instructions are required for manual delivery',
+        );
+      }
     }
 
-    if (data.deliveryType === 'AUTO_KEY' && !data.keyPoolId) {
-      console.warn(
-        `[WARN] Offer published without key pool ID (seller: ${data.sellerId})`,
-      );
+    if (data.deliveryType === 'AUTO_KEY') {
+      // For MVP: accept either keyPoolId or stockCount, but at least one is required
+      if (!data.keyPoolId && !data.stockCount) {
+        throw new BadRequestException(
+          'Either key pool ID or stock count is required for auto-key delivery',
+        );
+      }
     }
 
     // Create offer with active status
@@ -201,6 +224,54 @@ export class OffersService {
   }
 
   /**
+   * Validate that the variant supports the selected delivery type
+   */
+  private async validateDeliveryCapability(
+    variantId: string,
+    deliveryType: string,
+  ): Promise<void> {
+    const variant = await prisma.catalogVariant.findUnique({
+      where: { id: variantId },
+      select: {
+        id: true,
+        supportsAutoKey: true,
+        supportsManual: true,
+        isActive: true,
+        sku: true,
+      },
+    });
+
+    if (!variant) {
+      throw new BadRequestException(`Variant with ID ${variantId} not found`);
+    }
+
+    if (!variant.isActive) {
+      throw new BadRequestException(
+        `Variant ${variant.sku} is not active and cannot be used for offers`,
+      );
+    }
+
+    if (deliveryType === 'AUTO_KEY' && !variant.supportsAutoKey) {
+      throw new BadRequestException(
+        `Variant ${variant.sku} does not support auto-key delivery`,
+      );
+    }
+
+    if (deliveryType === 'MANUAL' && !variant.supportsManual) {
+      throw new BadRequestException(
+        `Variant ${variant.sku} does not support manual delivery`,
+      );
+    }
+
+    // Ensure at least one delivery method is supported
+    if (!variant.supportsAutoKey && !variant.supportsManual) {
+      throw new BadRequestException(
+        `Variant ${variant.sku} does not support any delivery method and cannot be used`,
+      );
+    }
+  }
+
+  /**
    * Helper: Map Prisma Offer to contract
    */
   private mapOfferToContract(offer: any): Offer {
@@ -246,6 +317,8 @@ export class OffersService {
         durationDays: offer.variant.durationDays,
         edition: offer.variant.edition,
         sku: offer.variant.sku,
+        supportsAutoKey: offer.variant.supportsAutoKey,
+        supportsManual: offer.variant.supportsManual,
         isActive: offer.variant.isActive,
         sortOrder: offer.variant.sortOrder,
         createdAt: offer.variant.createdAt.toISOString(),

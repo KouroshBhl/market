@@ -97,16 +97,18 @@ model CatalogProduct {
 
 // Variants: region/duration/edition combinations
 model CatalogVariant {
-  id            String   @id @default(uuid())
-  productId     String   @map("product_id")
-  region        Region
-  durationDays  Int?     @map("duration_days")
-  edition       String?  // e.g., "Standard", "Deluxe", etc.
-  sku           String   @unique
-  isActive      Boolean  @default(true) @map("is_active")
-  sortOrder     Int      @default(0) @map("sort_order")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  productId        String   @map("product_id")
+  region           Region
+  durationDays     Int?     @map("duration_days")
+  edition          String?  // e.g., "Standard", "Deluxe", etc.
+  sku              String   @unique
+  supportsAutoKey  Boolean  @default(false) @map("supports_auto_key") // Can be delivered via automated key
+  supportsManual   Boolean  @default(true) @map("supports_manual")    // Can be delivered manually
+  isActive         Boolean  @default(true) @map("is_active")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   product CatalogProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
   offers  Offer[]
@@ -119,23 +121,24 @@ model CatalogVariant {
 
 // Seller listings for catalog variants
 model Offer {
-  id                   String      @id @default(uuid())
-  sellerId             String      @map("seller_id") // Future: FK to User
-  variantId            String      @map("variant_id")
-  status               OfferStatus @default(draft)
+  id                   String       @id @default(uuid())
+  sellerId             String       @map("seller_id") // Future: FK to User
+  variantId            String       @map("variant_id")
+  status               OfferStatus  @default(draft)
   deliveryType         DeliveryType @map("delivery_type")
-  priceAmount          Int         @map("price_amount") // In smallest currency unit (cents)
+  priceAmount          Int          @map("price_amount") // In smallest currency unit (cents)
   currency             Currency
-  stockCount           Int?        @map("stock_count") // Manual tracking or computed from key pool
-  deliveryInstructions String?     @map("delivery_instructions") @db.Text // Required for MANUAL
-  keyPoolId            String?     @map("key_pool_id") // Required for AUTO_KEY (future FK)
-  publishedAt          DateTime?   @map("published_at")
-  createdAt            DateTime    @default(now()) @map("created_at")
-  updatedAt            DateTime    @updatedAt @map("updated_at")
+  stockCount           Int?         @map("stock_count") // Manual tracking or computed from key pool
+  deliveryInstructions String?      @map("delivery_instructions") @db.Text // Required for MANUAL
+  keyPoolId            String?      @map("key_pool_id") // Required for AUTO_KEY (future FK)
+  publishedAt          DateTime?    @map("published_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
   variant CatalogVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@index([sellerId, status])
+  @@index([variantId])
   @@index([variantId, status])
   @@index([status, publishedAt])
   @@map("offers")

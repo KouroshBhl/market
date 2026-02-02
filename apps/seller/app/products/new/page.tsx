@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DeliveryType, Currency, CatalogProduct, CatalogVariant } from '@workspace/contracts';
 import {
@@ -33,13 +33,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 // For now, hardcode sellerId until auth is implemented
 const SELLER_ID = '00000000-0000-0000-0000-000000000001';
 
-type Step = 'delivery-type' | 'category' | 'product' | 'variant' | 'pricing' | 'review';
+type Step = 'category' | 'product' | 'variant' | 'delivery-type' | 'pricing' | 'review';
 
 interface WizardState {
-  deliveryType: DeliveryType | null;
   categoryId: string | null;
   productId: string | null;
   variantId: string | null;
+  deliveryType: DeliveryType | null;
   priceAmount: string; // Keep as string for input
   currency: Currency;
   stockCount: string;
@@ -50,10 +50,10 @@ interface WizardState {
 }
 
 const INITIAL_STATE: WizardState = {
-  deliveryType: null,
   categoryId: null,
   productId: null,
   variantId: null,
+  deliveryType: null,
   priceAmount: '',
   currency: 'USD',
   stockCount: '',
@@ -63,7 +63,7 @@ const INITIAL_STATE: WizardState = {
 
 export default function NewOfferPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<Step>('delivery-type');
+  const [currentStep, setCurrentStep] = useState<Step>('category');
   const [wizardState, setWizardState] = useState<WizardState>(INITIAL_STATE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,14 +123,51 @@ export default function NewOfferPage() {
     setValidationErrors([]);
   };
 
-  const canProceedFromDeliveryType = wizardState.deliveryType !== null;
   const canProceedFromCategory = wizardState.categoryId !== null;
   const canProceedFromProduct = wizardState.productId !== null;
   const canProceedFromVariant = wizardState.variantId !== null;
+  const canProceedFromDeliveryType = wizardState.deliveryType !== null;
   const canProceedFromPricing = 
     wizardState.priceAmount.trim() !== '' && 
     !isNaN(Number(wizardState.priceAmount)) &&
     Number(wizardState.priceAmount) > 0;
+
+  // Get selected variant details
+  const selectedVariant = variantsData?.variants.find(
+    (v) => v.id === wizardState.variantId
+  );
+
+  // Determine available delivery types based on variant capabilities
+  const availableDeliveryTypes = selectedVariant
+    ? {
+        autoKey: selectedVariant.supportsAutoKey,
+        manual: selectedVariant.supportsManual,
+      }
+    : { autoKey: true, manual: true }; // Default to all if no variant selected yet
+
+  // Auto-select delivery type if only one is available, or reset if current selection is invalid
+  useEffect(() => {
+    if (!selectedVariant) return;
+    
+    const { supportsAutoKey, supportsManual } = selectedVariant;
+    
+    // If only one delivery type is supported, auto-select it
+    if (supportsAutoKey && !supportsManual) {
+      updateState({ deliveryType: 'AUTO_KEY' });
+    } else if (!supportsAutoKey && supportsManual) {
+      updateState({ deliveryType: 'MANUAL' });
+    } else if (!supportsAutoKey && !supportsManual) {
+      // This shouldn't happen if data is correct, but handle it
+      setError('Selected variant does not support any delivery method');
+    } else if (wizardState.deliveryType) {
+      // Both are supported, but check if current selection is still valid
+      if (wizardState.deliveryType === 'AUTO_KEY' && !supportsAutoKey) {
+        updateState({ deliveryType: null });
+      } else if (wizardState.deliveryType === 'MANUAL' && !supportsManual) {
+        updateState({ deliveryType: null });
+      }
+    }
+  }, [selectedVariant?.id]); // Only run when variant changes
 
   const handleSaveDraft = async () => {
     console.log('💾 Saving draft...');
@@ -284,74 +321,6 @@ export default function NewOfferPage() {
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'delivery-type':
-        return (
-          <div>
-            <div className='mb-8'>
-              <h2 className='text-2xl font-bold text-foreground mb-2'>
-                Choose Delivery Type
-              </h2>
-              <p className='text-muted-foreground'>
-                Select how you want to deliver this product to customers
-              </p>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-              <DeliveryTypeCard
-                title='Automatic Key Delivery'
-                description='Perfect for digital products like game keys, software licenses, or gift cards. Keys are delivered instantly to customers after purchase.'
-                badge='Instant delivery'
-                icon={
-                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' />
-                  </svg>
-                }
-                badgeIcon={
-                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M13 10V3L4 14h7v7l9-11h-7z' />
-                  </svg>
-                }
-                selected={wizardState.deliveryType === 'AUTO_KEY'}
-                disabled={false}
-                loading={false}
-                onSelect={() => updateState({ deliveryType: 'AUTO_KEY' })}
-              />
-
-              <DeliveryTypeCard
-                title='Manual Fulfillment'
-                description="Ideal for custom services, physical goods, or products that require personal attention. You'll fulfill orders manually."
-                badge='Flexible delivery'
-                icon={
-                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />
-                  </svg>
-                }
-                badgeIcon={
-                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />
-                  </svg>
-                }
-                selected={wizardState.deliveryType === 'MANUAL'}
-                disabled={false}
-                loading={false}
-                onSelect={() => updateState({ deliveryType: 'MANUAL' })}
-              />
-            </div>
-
-            <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => router.push('/products')}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => goToStep('category')}
-                disabled={!canProceedFromDeliveryType}
-              >
-                Next: Select Category →
-              </Button>
-            </div>
-          </div>
-        );
-
       case 'category':
         return (
           <div>
@@ -382,8 +351,8 @@ export default function NewOfferPage() {
             )}
 
             <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => goToStep('delivery-type')}>
-                ← Back
+              <Button variant='ghost' onClick={() => router.push('/products')}>
+                Cancel
               </Button>
               <Button 
                 onClick={() => goToStep('product')}
@@ -459,7 +428,9 @@ export default function NewOfferPage() {
               <VariantSelector
                 variants={variantsData.variants}
                 selectedVariantId={wizardState.variantId}
-                onSelect={(id) => updateState({ variantId: id })}
+                onSelect={(id) => {
+                  updateState({ variantId: id, deliveryType: null });
+                }}
               />
             ) : (
               <Alert variant='destructive'>
@@ -472,8 +443,100 @@ export default function NewOfferPage() {
                 ← Back
               </Button>
               <Button 
-                onClick={() => goToStep('pricing')}
+                onClick={() => goToStep('delivery-type')}
                 disabled={!canProceedFromVariant}
+              >
+                Next: Choose Delivery Type →
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'delivery-type':
+        return (
+          <div>
+            <div className='mb-8'>
+              <h2 className='text-2xl font-bold text-foreground mb-2'>
+                Choose Delivery Type
+              </h2>
+              <p className='text-muted-foreground'>
+                Select how you want to deliver this product to customers
+              </p>
+              {selectedVariant && (
+                <div className='mt-4 p-4 bg-muted/50 rounded-lg border border-border'>
+                  <p className='text-sm text-muted-foreground'>
+                    <strong>Selected variant:</strong> {selectedVariant.sku}
+                  </p>
+                  <p className='text-xs text-muted-foreground mt-1'>
+                    Available delivery methods:{' '}
+                    {[
+                      selectedVariant.supportsAutoKey && 'Auto-Key',
+                      selectedVariant.supportsManual && 'Manual',
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+              <DeliveryTypeCard
+                title='Automatic Key Delivery'
+                description='Perfect for digital products like game keys, software licenses, or gift cards. Keys are delivered instantly to customers after purchase.'
+                badge='Instant delivery'
+                icon={
+                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' />
+                  </svg>
+                }
+                badgeIcon={
+                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M13 10V3L4 14h7v7l9-11h-7z' />
+                  </svg>
+                }
+                selected={wizardState.deliveryType === 'AUTO_KEY'}
+                disabled={!availableDeliveryTypes.autoKey}
+                loading={false}
+                onSelect={() => updateState({ deliveryType: 'AUTO_KEY' })}
+              />
+
+              <DeliveryTypeCard
+                title='Manual Fulfillment'
+                description="Ideal for custom services, physical goods, or products that require personal attention. You'll fulfill orders manually."
+                badge='Flexible delivery'
+                icon={
+                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />
+                  </svg>
+                }
+                badgeIcon={
+                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />
+                  </svg>
+                }
+                selected={wizardState.deliveryType === 'MANUAL'}
+                disabled={!availableDeliveryTypes.manual}
+                loading={false}
+                onSelect={() => updateState({ deliveryType: 'MANUAL' })}
+              />
+            </div>
+
+            {!availableDeliveryTypes.autoKey && !availableDeliveryTypes.manual && (
+              <Alert variant='destructive' className='mt-6'>
+                <AlertDescription>
+                  The selected variant does not support any delivery method. Please go back and select a different variant.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className='mt-8 flex gap-4'>
+              <Button variant='ghost' onClick={() => goToStep('variant')}>
+                ← Back
+              </Button>
+              <Button 
+                onClick={() => goToStep('pricing')}
+                disabled={!canProceedFromDeliveryType}
               >
                 Next: Set Pricing →
               </Button>
@@ -573,7 +636,7 @@ export default function NewOfferPage() {
             </Card>
 
             <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => goToStep('variant')}>
+              <Button variant='ghost' onClick={() => goToStep('delivery-type')}>
                 ← Back
               </Button>
               <Button 
@@ -757,13 +820,13 @@ export default function NewOfferPage() {
           {/* Progress indicator */}
           <div className='mb-8'>
             <div className='flex items-center justify-between'>
-              {(['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'] as Step[]).map((step, idx) => (
+              {(['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'] as Step[]).map((step, idx) => (
                 <div key={step} className='flex items-center'>
                   <div 
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
                       ${currentStep === step ? 'bg-ring text-background' : 
-                        ['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'].indexOf(currentStep) > idx
+                        ['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'].indexOf(currentStep) > idx
                         ? 'bg-accent text-accent-foreground' 
                         : 'bg-muted text-muted-foreground'}
                     `}
@@ -772,7 +835,7 @@ export default function NewOfferPage() {
                   </div>
                   {idx < 5 && (
                     <div className={`w-12 h-1 mx-2 ${
-                      ['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'].indexOf(currentStep) > idx
+                      ['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'].indexOf(currentStep) > idx
                         ? 'bg-accent' 
                         : 'bg-muted'
                     }`} />

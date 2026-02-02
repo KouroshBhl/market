@@ -97,6 +97,8 @@ export class CatalogService {
       durationDays: variant.durationDays,
       edition: variant.edition,
       sku: variant.sku,
+      supportsAutoKey: variant.supportsAutoKey,
+      supportsManual: variant.supportsManual,
       isActive: variant.isActive,
       sortOrder: variant.sortOrder,
       createdAt: variant.createdAt.toISOString(),

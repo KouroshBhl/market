@@ -40,7 +40,7 @@ export type OfferWithDetails = z.infer<typeof OfferWithDetailsSchema>;
 export const SaveOfferDraftSchema = z.object({
   id: z.string().uuid().optional(), // If provided, updates existing draft
   sellerId: z.string().uuid(),
-  deliveryType: DeliveryTypeSchema,
+  deliveryType: DeliveryTypeSchema.optional(),
   variantId: z.string().uuid().optional(),
   priceAmount: z.number().int().optional(),
   currency: CurrencySchema.optional(),

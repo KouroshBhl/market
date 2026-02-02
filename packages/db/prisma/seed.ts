@@ -40,6 +40,90 @@ const CHILDREN = [
   { id: '40000000-0000-0000-0000-000000000004', parentId: PARENTS[3].id, name: 'Custom Artwork', slug: 'custom-artwork', sortOrder: 40 },
 ] as const;
 
+// Catalog Products - WoW Game Time
+const WOW_CATEGORY_ID = '10000000-0000-0000-0000-000000000001'; // World of Warcraft
+const CATALOG_PRODUCTS = [
+  {
+    id: 'c0000000-0000-0000-0000-000000000001',
+    categoryId: WOW_CATEGORY_ID,
+    name: 'WoW Game Time',
+    slug: 'wow-game-time',
+    description: 'World of Warcraft game time subscription',
+    imageUrl: 'https://placehold.co/400x300/1e293b/94a3b8?text=WoW+Game+Time',
+    isActive: true,
+    sortOrder: 10,
+  },
+] as const;
+
+// Catalog Variants - Different durations and regions
+const CATALOG_VARIANTS = [
+  // WoW Game Time EU - 60 days: supports both auto_key and manual
+  {
+    id: 'v0000000-0000-0000-0000-000000000001',
+    productId: CATALOG_PRODUCTS[0].id,
+    region: 'EU' as const,
+    durationDays: 60,
+    edition: null,
+    sku: 'WOW-GT-EU-60D',
+    supportsAutoKey: true,  // Has automated key delivery
+    supportsManual: true,   // Also supports manual delivery
+    isActive: true,
+    sortOrder: 10,
+  },
+  // WoW Game Time EU - 30 days: supports manual only (no auto-key available)
+  {
+    id: 'v0000000-0000-0000-0000-000000000002',
+    productId: CATALOG_PRODUCTS[0].id,
+    region: 'EU' as const,
+    durationDays: 30,
+    edition: null,
+    sku: 'WOW-GT-EU-30D',
+    supportsAutoKey: false, // No automated key delivery
+    supportsManual: true,   // Manual delivery only
+    isActive: true,
+    sortOrder: 20,
+  },
+  // WoW Game Time US - 60 days: supports both
+  {
+    id: 'v0000000-0000-0000-0000-000000000003',
+    productId: CATALOG_PRODUCTS[0].id,
+    region: 'US' as const,
+    durationDays: 60,
+    edition: null,
+    sku: 'WOW-GT-US-60D',
+    supportsAutoKey: true,
+    supportsManual: true,
+    isActive: true,
+    sortOrder: 30,
+  },
+  // WoW Game Time US - 30 days: supports manual only
+  {
+    id: 'v0000000-0000-0000-0000-000000000004',
+    productId: CATALOG_PRODUCTS[0].id,
+    region: 'US' as const,
+    durationDays: 30,
+    edition: null,
+    sku: 'WOW-GT-US-30D',
+    supportsAutoKey: false,
+    supportsManual: true,
+    isActive: true,
+    sortOrder: 40,
+  },
+  // WoW Game Time GLOBAL - 90 days: auto-key only (example of automated-only variant)
+  {
+    id: 'v0000000-0000-0000-0000-000000000005',
+    productId: CATALOG_PRODUCTS[0].id,
+    region: 'GLOBAL' as const,
+    durationDays: 90,
+    edition: null,
+    sku: 'WOW-GT-GLOBAL-90D',
+    supportsAutoKey: true,
+    supportsManual: false,  // Only automated delivery
+    isActive: true,
+    sortOrder: 50,
+  },
+] as const;
+
 /**
  * Validate category depth (max 2 levels: parent -> child)
  * This is application-level validation since Prisma can't enforce depth easily
@@ -62,7 +146,7 @@ async function validateCategoryDepth(categoryId: string): Promise<void> {
 }
 
 async function main() {
-  console.log('🌱 Seeding categories...\n');
+  console.log('🌱 Seeding database...\n');
 
   // Create parent categories
   console.log('📁 Creating parent categories...');
@@ -115,6 +199,85 @@ async function main() {
     console.log(`  ✓ ${child.name}`);
   }
 
+  // Create catalog products
+  console.log('\n📦 Creating catalog products...');
+  const productIdMap = new Map<string, string>(); // old ID -> actual ID
+  
+  for (const product of CATALOG_PRODUCTS) {
+    const existing = await prisma.catalogProduct.findFirst({
+      where: {
+        categoryId: product.categoryId,
+        slug: product.slug,
+      },
+    });
+
+    let actualProduct;
+    if (existing) {
+      actualProduct = await prisma.catalogProduct.update({
+        where: { id: existing.id },
+        data: {
+          name: product.name,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          isActive: product.isActive,
+          sortOrder: product.sortOrder,
+        },
+      });
+    } else {
+      actualProduct = await prisma.catalogProduct.create({
+        data: {
+          id: product.id,
+          categoryId: product.categoryId,
+          name: product.name,
+          slug: product.slug,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          isActive: product.isActive,
+          sortOrder: product.sortOrder,
+        },
+      });
+    }
+    productIdMap.set(product.id, actualProduct.id);
+    console.log(`  ✓ ${product.name}`);
+  }
+
+  // Create catalog variants
+  console.log('\n🎯 Creating catalog variants...');
+  for (const variant of CATALOG_VARIANTS) {
+    const actualProductId = productIdMap.get(variant.productId) || variant.productId;
+    
+    await prisma.catalogVariant.upsert({
+      where: { id: variant.id },
+      update: {
+        productId: actualProductId,
+        region: variant.region,
+        durationDays: variant.durationDays,
+        edition: variant.edition,
+        sku: variant.sku,
+        supportsAutoKey: variant.supportsAutoKey,
+        supportsManual: variant.supportsManual,
+        isActive: variant.isActive,
+        sortOrder: variant.sortOrder,
+      },
+      create: {
+        id: variant.id,
+        productId: actualProductId,
+        region: variant.region,
+        durationDays: variant.durationDays,
+        edition: variant.edition,
+        sku: variant.sku,
+        supportsAutoKey: variant.supportsAutoKey,
+        supportsManual: variant.supportsManual,
+        isActive: variant.isActive,
+        sortOrder: variant.sortOrder,
+      },
+    });
+    const deliveryMethods = [];
+    if (variant.supportsAutoKey) deliveryMethods.push('auto-key');
+    if (variant.supportsManual) deliveryMethods.push('manual');
+    console.log(`  ✓ ${variant.sku} (${deliveryMethods.join(', ')})`);
+  }
+
   // Verify counts
   const parentCount = await prisma.category.count({
     where: { parentId: null },
@@ -122,10 +285,14 @@ async function main() {
   const childCount = await prisma.category.count({
     where: { parentId: { not: null } },
   });
+  const productCount = await prisma.catalogProduct.count();
+  const variantCount = await prisma.catalogVariant.count();
 
   console.log('\n✅ Seeding complete!');
   console.log(`   • ${parentCount} parent categories`);
   console.log(`   • ${childCount} child categories`);
+  console.log(`   • ${productCount} catalog products`);
+  console.log(`   • ${variantCount} catalog variants`);
   console.log(`   • ${parentCount + childCount} total categories\n`);
 }
 

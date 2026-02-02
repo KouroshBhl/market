@@ -31,6 +31,8 @@ export const CatalogVariantSchema = z.object({
   durationDays: z.number().nullable(),
   edition: z.string().nullable(),
   sku: z.string(),
+  supportsAutoKey: z.boolean(), // Can be delivered via automated key
+  supportsManual: z.boolean(),  // Can be delivered manually
   isActive: z.boolean(),
   sortOrder: z.number(),
   createdAt: z.string(),
