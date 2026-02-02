@@ -248,12 +248,43 @@ model Key {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  pool  KeyPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  order Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  pool      KeyPool       @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  order     Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  auditLogs KeyAuditLog[]
 
   @@index([poolId, status]) // Fast lookup of available keys
+  @@index([poolId, status, createdAt]) // For paginated listing with filters
   @@index([orderId])
   @@map("keys")
+}
+
+// ============================================
+// KEY AUDIT LOG - Tracks key management actions
+// ============================================
+
+enum KeyAuditAction {
+  UPLOAD
+  EDIT
+  INVALIDATE
+  REVEAL
+}
+
+// Audit log for key management actions
+model KeyAuditLog {
+  id        String         @id @default(uuid())
+  keyId     String         @map("key_id")
+  poolId    String         @map("pool_id")
+  sellerId  String         @map("seller_id")
+  action    KeyAuditAction
+  metadata  Json?          // Additional context (e.g., old hash for EDIT)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  key Key @relation(fields: [keyId], references: [id], onDelete: Cascade)
+
+  @@index([keyId])
+  @@index([poolId, createdAt])
+  @@index([sellerId, createdAt])
+  @@map("key_audit_logs")
 }
 
 // Order - MVP minimal for testing fulfillment
