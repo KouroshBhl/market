@@ -20,6 +20,7 @@ import {
   Label,
   Badge,
   toast,
+  Select,
 } from '@workspace/ui';
 import { DeliveryTypeCard } from '@/components/delivery-type-card';
 import { CategorySelector } from '@/components/category-selector';
@@ -509,18 +510,17 @@ export default function NewOfferPage() {
 
                 <div className='space-y-2'>
                   <Label htmlFor='currency'>Currency *</Label>
-                  <select
+                  <Select
                     id='currency'
                     value={wizardState.currency}
                     onChange={(e) => updateState({ currency: e.target.value as Currency })}
-                    className='flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm'
                   >
                     <option value='USD'>USD - US Dollar</option>
                     <option value='EUR'>EUR - Euro</option>
                     <option value='UAH'>UAH - Ukrainian Hryvnia</option>
                     <option value='RUB'>RUB - Russian Ruble</option>
                     <option value='IRR'>IRR - Iranian Rial</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
 

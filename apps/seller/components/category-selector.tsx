@@ -76,12 +76,13 @@ export function CategorySelector({
             const childCount = parent.children.length;
 
             return (
-              <button
+              <Button
                 key={parent.id}
                 onClick={() => handleParentClick(parent.id)}
                 disabled={disabled}
+                variant='ghost'
                 className={`
-                  relative p-4 rounded-lg border-2 transition-all text-left
+                  relative p-4 rounded-lg border-2 transition-all text-left h-auto
                   ${
                     isActive
                       ? 'border-ring bg-accent'
@@ -113,7 +114,7 @@ export function CategorySelector({
                     </div>
                   </div>
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -161,9 +162,7 @@ export function CategorySelector({
                       <span className='font-medium text-foreground'>
                         {child.name}
                       </span>
-                      {isSelected && (
-                        <Badge variant='default'>Selected</Badge>
-                      )}
+                      {isSelected && <Badge variant='default'>Selected</Badge>}
                     </div>
                   </Card>
                 );
