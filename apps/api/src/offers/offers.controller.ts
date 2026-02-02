@@ -5,6 +5,7 @@ import type {
   Offer,
   SaveOfferDraft,
   PublishOffer,
+  UpdateOffer,
   UpdateOfferStatus,
   GetSellerOffersResponse,
 } from '@workspace/contracts';
@@ -69,6 +70,31 @@ export class OffersController {
   })
   async publish(@Body() data: PublishOffer): Promise<Offer> {
     return this.offersService.publish(data);
+  }
+
+  @Patch('offers/:id')
+  @ApiOperation({
+    summary: 'Update offer',
+    description: 'Update offer fields (pricing, description). Works for draft and active offers.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Offer ID (UUID)',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Offer updated successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Offer not found',
+  })
+  async updateOffer(
+    @Param('id') id: string,
+    @Body() data: UpdateOffer,
+  ): Promise<Offer> {
+    return this.offersService.updateOffer(id, data);
   }
 
   @Patch('offers/:id/status')

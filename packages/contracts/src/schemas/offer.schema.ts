@@ -21,6 +21,7 @@ export const OfferSchema = z.object({
   priceAmount: z.number().int(),
   currency: CurrencySchema,
   stockCount: z.number().int().nullable(), // For MANUAL delivery only
+  descriptionMarkdown: z.string().nullable(),
   deliveryInstructions: z.string().nullable(),
   keyPoolId: z.string().uuid().nullable(), // FK to KeyPool for AUTO_KEY
   publishedAt: z.string().nullable(),
@@ -49,6 +50,7 @@ export const SaveOfferDraftSchema = z.object({
   priceAmount: z.number().int().optional(),
   currency: CurrencySchema.optional(),
   stockCount: z.number().int().nullable().optional(),
+  descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
   deliveryInstructions: z.string().nullable().optional(),
   keyPoolId: z.string().uuid().nullable().optional(),
 });
@@ -63,11 +65,21 @@ export const PublishOfferSchema = z.object({
   priceAmount: z.number().int().positive(),
   currency: CurrencySchema,
   stockCount: z.number().int().nullable().optional(),
+  descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
   deliveryInstructions: z.string().nullable().optional(),
   keyPoolId: z.string().uuid().nullable().optional(),
 });
 
 export type PublishOffer = z.infer<typeof PublishOfferSchema>;
+
+// PATCH /offers/:id - Update offer (pricing, description, etc.)
+export const UpdateOfferSchema = z.object({
+  priceAmount: z.number().int().positive().optional(),
+  currency: CurrencySchema.optional(),
+  descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
+});
+
+export type UpdateOffer = z.infer<typeof UpdateOfferSchema>;
 
 // PATCH /offers/:id/status - Toggle active/inactive
 export const UpdateOfferStatusSchema = z.object({

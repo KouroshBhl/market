@@ -22,13 +22,14 @@ import { OverviewTab } from '@/components/offer-settings/overview-tab';
 import { KeysTab } from '@/components/offer-settings/keys-tab';
 import { PricingTab } from '@/components/offer-settings/pricing-tab';
 import { DeliveryTab } from '@/components/offer-settings/delivery-tab';
+import { DescriptionTab } from '@/components/offer-settings/description-tab';
 import { AdvancedTab } from '@/components/offer-settings/advanced-tab';
 import { updateOfferStatus } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@workspace/ui';
 import type { OfferWithDetails } from '@workspace/contracts';
 
-type TabId = 'overview' | 'keys' | 'pricing' | 'delivery' | 'advanced';
+type TabId = 'overview' | 'keys' | 'pricing' | 'description' | 'delivery' | 'advanced';
 
 const TABS: { id: TabId; label: string; showWhen?: (offer: OfferWithDetails) => boolean }[] = [
   { id: 'overview', label: 'Overview' },
@@ -38,6 +39,7 @@ const TABS: { id: TabId; label: string; showWhen?: (offer: OfferWithDetails) => 
     showWhen: (o) => o.deliveryType === 'AUTO_KEY',
   },
   { id: 'pricing', label: 'Pricing' },
+  { id: 'description', label: 'Description' },
   { id: 'delivery', label: 'Delivery' },
   { id: 'advanced', label: 'Advanced' },
 ];
@@ -204,6 +206,7 @@ export default function OfferSettingsPage() {
             )}
             {activeTab === 'keys' && <KeysTab offerId={offer.id} />}
             {activeTab === 'pricing' && <PricingTab offer={offer} />}
+            {activeTab === 'description' && <DescriptionTab offer={offer} />}
             {activeTab === 'delivery' && <DeliveryTab offer={offer} />}
             {activeTab === 'advanced' && (
               <AdvancedTab

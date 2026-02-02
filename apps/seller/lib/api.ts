@@ -3,6 +3,7 @@ import type {
   SaveProductDraft,
   ProductDraft,
   OfferWithDetails,
+  UpdateOffer,
   UpdateOfferStatus,
   KeyPoolWithCounts,
   KeyPoolStats,
@@ -49,9 +50,9 @@ export async function updateOfferStatus(
   }
 }
 
-export async function updateOfferPricing(
+export async function updateOffer(
   offerId: string,
-  payload: { priceAmount: number; currency: string }
+  payload: UpdateOffer
 ): Promise<void> {
   const response = await fetch(`${API_URL}/offers/${offerId}`, {
     method: 'PATCH',
@@ -60,8 +61,16 @@ export async function updateOfferPricing(
   });
   if (!response.ok) {
     const err = await response.json();
-    throw new Error(err.message ?? 'Failed to update pricing');
+    throw new Error(err.message ?? 'Failed to update offer');
   }
+}
+
+/** @deprecated Use updateOffer instead */
+export async function updateOfferPricing(
+  offerId: string,
+  payload: { priceAmount: number; currency: string }
+): Promise<void> {
+  return updateOffer(offerId, payload);
 }
 
 export async function saveProductDraft(data: SaveProductDraft): Promise<ProductDraft> {

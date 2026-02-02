@@ -23,6 +23,8 @@ import {
   Select,
 } from '@workspace/ui';
 import { DeliveryTypeCard } from '@/components/delivery-type-card';
+import { MarkdownEditor } from '@/components/markdown-editor';
+import { MarkdownPreview } from '@/components/markdown-preview';
 import { CategorySelector } from '@/components/category-selector';
 import { CatalogProductSelector } from '@/components/catalog-product-selector';
 import { VariantSelector } from '@/components/variant-selector';
@@ -43,6 +45,7 @@ interface WizardState {
   priceAmount: string; // Keep as string for input
   currency: Currency;
   stockCount: string; // For MANUAL delivery only
+  descriptionMarkdown: string;
   // Manual delivery
   deliveryInstructions: string;
 }
@@ -55,6 +58,7 @@ const INITIAL_STATE: WizardState = {
   priceAmount: '',
   currency: 'USD',
   stockCount: '',
+  descriptionMarkdown: '',
   deliveryInstructions: '',
 };
 
@@ -184,8 +188,11 @@ export default function NewOfferPage() {
         payload.priceAmount = Math.round(Number(wizardState.priceAmount) * 100); // Convert to cents
       }
       if (wizardState.currency) payload.currency = wizardState.currency;
-      if (wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+      if (wizardState.deliveryType === 'MANUAL' && wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
         payload.stockCount = Number(wizardState.stockCount);
+      }
+      if (wizardState.descriptionMarkdown.trim()) {
+        payload.descriptionMarkdown = wizardState.descriptionMarkdown.trim();
       }
 
       // Add delivery config for MANUAL type
@@ -257,8 +264,11 @@ export default function NewOfferPage() {
         currency: wizardState.currency,
       };
 
-      if (wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+      if (wizardState.deliveryType === 'MANUAL' && wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
         payload.stockCount = Number(wizardState.stockCount);
+      }
+      if (wizardState.descriptionMarkdown.trim()) {
+        payload.descriptionMarkdown = wizardState.descriptionMarkdown.trim();
       }
 
       // Add delivery config for MANUAL type
@@ -582,19 +592,30 @@ export default function NewOfferPage() {
                 </div>
               </div>
 
+              {wizardState.deliveryType === 'MANUAL' && (
+                <div className='space-y-2'>
+                  <Label htmlFor='stockCount'>Stock Count (optional)</Label>
+                  <Input
+                    id='stockCount'
+                    type='number'
+                    min='0'
+                    value={wizardState.stockCount}
+                    onChange={(e) => updateState({ stockCount: e.target.value })}
+                    placeholder='e.g., 100'
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Manual stock tracking. Leave empty for unlimited.
+                  </p>
+                </div>
+              )}
+
               <div className='space-y-2'>
-                <Label htmlFor='stockCount'>Stock Count (optional)</Label>
-                <Input
-                  id='stockCount'
-                  type='number'
-                  min='0'
-                  value={wizardState.stockCount}
-                  onChange={(e) => updateState({ stockCount: e.target.value })}
-                  placeholder='e.g., 100'
+                <MarkdownEditor
+                  value={wizardState.descriptionMarkdown}
+                  onChange={(v) => updateState({ descriptionMarkdown: v })}
+                  label='Offer description (optional)'
+                  helperText='Supports **bold**, _italic_, lists, headings, emojis. Visible to buyers.'
                 />
-                <p className='text-xs text-muted-foreground'>
-                  Manual stock tracking. Leave empty for unlimited.
-                </p>
               </div>
 
               {wizardState.deliveryType === 'MANUAL' && (
@@ -645,9 +666,9 @@ export default function NewOfferPage() {
         );
 
 
-      case 'review':
-        const selectedVariant = variantsData?.variants.find((v) => v.id === wizardState.variantId);
-        const selectedProduct = catalogProductsData?.products.find((p) => p.id === wizardState.productId);
+      case 'review': {
+        const reviewVariant = variantsData?.variants.find((v) => v.id === wizardState.variantId);
+        const reviewProduct = catalogProductsData?.products.find((p) => p.id === wizardState.productId);
 
         return (
           <div>
@@ -670,11 +691,11 @@ export default function NewOfferPage() {
 
               <div>
                 <h3 className='font-semibold text-foreground mb-2'>Product</h3>
-                {selectedProduct && (
+                {reviewProduct && (
                   <div className='text-sm'>
-                    <p className='font-medium text-foreground'>{selectedProduct.name}</p>
-                    {selectedProduct.description && (
-                      <p className='text-muted-foreground mt-1'>{selectedProduct.description}</p>
+                    <p className='font-medium text-foreground'>{reviewProduct.name}</p>
+                    {reviewProduct.description && (
+                      <p className='text-muted-foreground mt-1'>{reviewProduct.description}</p>
                     )}
                   </div>
                 )}
@@ -684,27 +705,27 @@ export default function NewOfferPage() {
 
               <div>
                 <h3 className='font-semibold text-foreground mb-2'>Variant</h3>
-                {selectedVariant && (
+                {reviewVariant && (
                   <dl className='space-y-2 text-sm'>
                     <div>
                       <dt className='text-muted-foreground'>Region:</dt>
-                      <dd className='text-foreground'>{selectedVariant.region}</dd>
+                      <dd className='text-foreground'>{reviewVariant.region}</dd>
                     </div>
                     <div>
                       <dt className='text-muted-foreground'>Duration:</dt>
                       <dd className='text-foreground'>
-                        {selectedVariant.durationDays ? `${selectedVariant.durationDays} days` : 'N/A'}
+                        {reviewVariant.durationDays ? `${reviewVariant.durationDays} days` : 'N/A'}
                       </dd>
                     </div>
-                    {selectedVariant.edition && (
+                    {reviewVariant.edition && (
                       <div>
                         <dt className='text-muted-foreground'>Edition:</dt>
-                        <dd className='text-foreground'>{selectedVariant.edition}</dd>
+                        <dd className='text-foreground'>{reviewVariant.edition}</dd>
                       </div>
                     )}
                     <div>
                       <dt className='text-muted-foreground'>SKU:</dt>
-                      <dd className='text-foreground font-mono text-xs'>{selectedVariant.sku}</dd>
+                      <dd className='text-foreground font-mono text-xs'>{reviewVariant.sku}</dd>
                     </div>
                   </dl>
                 )}
@@ -719,7 +740,7 @@ export default function NewOfferPage() {
                     <dt className='text-muted-foreground'>Price:</dt>
                     <dd className='text-foreground font-semibold'>{wizardState.currency} ${wizardState.priceAmount}</dd>
                   </div>
-                  {wizardState.stockCount && (
+                  {wizardState.deliveryType === 'MANUAL' && wizardState.stockCount && (
                     <div>
                       <dt className='text-muted-foreground'>Stock Count:</dt>
                       <dd className='text-foreground'>{wizardState.stockCount} units</dd>
@@ -727,6 +748,16 @@ export default function NewOfferPage() {
                   )}
                 </dl>
               </div>
+
+              {wizardState.descriptionMarkdown.trim() && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className='font-semibold text-foreground mb-2'>Description</h3>
+                    <MarkdownPreview content={wizardState.descriptionMarkdown} />
+                  </div>
+                </>
+              )}
 
               {wizardState.deliveryType === 'MANUAL' && wizardState.deliveryInstructions && (
                 <>
@@ -793,6 +824,7 @@ export default function NewOfferPage() {
             </div>
           </div>
         );
+      }
     }
   };
 

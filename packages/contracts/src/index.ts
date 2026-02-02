@@ -38,6 +38,7 @@ import {
   OfferWithDetailsSchema,
   SaveOfferDraftSchema,
   PublishOfferSchema,
+  UpdateOfferSchema,
   UpdateOfferStatusSchema,
   GetSellerOffersResponseSchema,
 } from './schemas/offer.schema';
@@ -94,6 +95,7 @@ registry.register('OfferStatus', OfferStatusSchema);
 registry.register('OfferWithDetails', OfferWithDetailsSchema);
 registry.register('SaveOfferDraft', SaveOfferDraftSchema);
 registry.register('PublishOffer', PublishOfferSchema);
+registry.register('UpdateOffer', UpdateOfferSchema);
 registry.register('UpdateOfferStatus', UpdateOfferStatusSchema);
 registry.register('GetSellerOffersResponse', GetSellerOffersResponseSchema);
 

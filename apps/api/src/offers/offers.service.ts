@@ -10,6 +10,7 @@ import type {
   OfferWithDetails,
   SaveOfferDraft,
   PublishOffer,
+  UpdateOffer,
   UpdateOfferStatus,
   GetSellerOffersResponse,
   AvailabilityStatus,
@@ -114,7 +115,12 @@ export class OffersService {
       throw new BadRequestException('Delivery type is required');
     }
 
-    // Otherwise create new draft
+    // stockCount: only for MANUAL; ignore for AUTO_KEY
+    const stockCount =
+      data.deliveryType === 'MANUAL' && data.stockCount !== undefined
+        ? data.stockCount
+        : null;
+
     const offer = await prisma.offer.create({
       data: {
         sellerId: data.sellerId,
@@ -123,7 +129,8 @@ export class OffersService {
         deliveryType: data.deliveryType,
         priceAmount: data.priceAmount || 0,
         currency: data.currency || 'USD',
-        stockCount: data.stockCount !== undefined ? data.stockCount : null,
+        stockCount,
+        descriptionMarkdown: data.descriptionMarkdown ?? null,
         deliveryInstructions: data.deliveryInstructions || null,
         // keyPool is created when publishing, not when saving draft
       },
@@ -160,6 +167,16 @@ export class OffersService {
       await this.validateDeliveryCapability(finalVariantId, finalDeliveryType);
     }
 
+    // stockCount: only for MANUAL; ignore for AUTO_KEY
+    const stockCountUpdate =
+      finalDeliveryType === 'MANUAL' && data.stockCount !== undefined
+        ? { stockCount: data.stockCount }
+        : finalDeliveryType === 'AUTO_KEY'
+          ? { stockCount: null }
+          : data.stockCount !== undefined
+            ? { stockCount: data.stockCount }
+            : {};
+
     const offer = await prisma.offer.update({
       where: { id },
       data: {
@@ -167,7 +184,8 @@ export class OffersService {
         ...(data.deliveryType !== undefined && { deliveryType: data.deliveryType }),
         ...(data.priceAmount !== undefined && { priceAmount: data.priceAmount }),
         ...(data.currency !== undefined && { currency: data.currency }),
-        ...(data.stockCount !== undefined && { stockCount: data.stockCount }),
+        ...stockCountUpdate,
+        ...(data.descriptionMarkdown !== undefined && { descriptionMarkdown: data.descriptionMarkdown }),
         ...(data.deliveryInstructions !== undefined && {
           deliveryInstructions: data.deliveryInstructions,
         }),
@@ -224,6 +242,7 @@ export class OffersService {
           stockCount: data.deliveryType === 'MANUAL' && data.stockCount !== undefined 
             ? data.stockCount 
             : null,
+          descriptionMarkdown: data.descriptionMarkdown ?? null,
           deliveryInstructions: data.deliveryInstructions || null,
           publishedAt: new Date(),
         },
@@ -250,6 +269,33 @@ export class OffersService {
     });
 
     return this.mapOfferToContract(offerWithPool!);
+  }
+
+  /**
+   * Update offer (pricing, description, etc.) - for draft and active offers
+   */
+  async updateOffer(id: string, data: UpdateOffer): Promise<Offer> {
+    const existing = await prisma.offer.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    const offer = await prisma.offer.update({
+      where: { id },
+      data: {
+        ...(data.priceAmount !== undefined && { priceAmount: data.priceAmount }),
+        ...(data.currency !== undefined && { currency: data.currency }),
+        ...(data.descriptionMarkdown !== undefined && {
+          descriptionMarkdown: data.descriptionMarkdown,
+        }),
+      },
+      include: { keyPool: true },
+    });
+
+    return this.mapOfferToContract(offer);
   }
 
   /**
@@ -338,7 +384,8 @@ export class OffersService {
       deliveryType: offer.deliveryType,
       priceAmount: offer.priceAmount,
       currency: offer.currency,
-      stockCount: offer.stockCount,
+      stockCount: offer.deliveryType === 'AUTO_KEY' ? null : offer.stockCount,
+      descriptionMarkdown: offer.descriptionMarkdown,
       deliveryInstructions: offer.deliveryInstructions,
       keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
@@ -363,7 +410,8 @@ export class OffersService {
       deliveryType: offer.deliveryType,
       priceAmount: offer.priceAmount,
       currency: offer.currency,
-      stockCount: offer.stockCount,
+      stockCount: offer.deliveryType === 'AUTO_KEY' ? null : offer.stockCount,
+      descriptionMarkdown: offer.descriptionMarkdown,
       deliveryInstructions: offer.deliveryInstructions,
       keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
