@@ -24,6 +24,23 @@ import {
   UpdateProductDraftSchema,
   UpdateProductStatusSchema 
 } from './schemas/product-draft.schema';
+import {
+  CatalogProductSchema,
+  CatalogVariantSchema,
+  CatalogVariantWithProductSchema,
+  RegionSchema,
+  GetCatalogProductsResponseSchema,
+  GetCatalogVariantsResponseSchema,
+} from './schemas/catalog.schema';
+import {
+  OfferSchema,
+  OfferStatusSchema,
+  OfferWithDetailsSchema,
+  SaveOfferDraftSchema,
+  PublishOfferSchema,
+  UpdateOfferStatusSchema,
+  GetSellerOffersResponseSchema,
+} from './schemas/offer.schema';
 
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
@@ -39,3 +56,16 @@ registry.register('UpdateProductDraft', UpdateProductDraftSchema);
 registry.register('UpdateProductStatus', UpdateProductStatusSchema);
 registry.register('AutoKeyConfig', AutoKeyConfigSchema);
 registry.register('ManualDeliveryConfig', ManualDeliveryConfigSchema);
+registry.register('Region', RegionSchema);
+registry.register('CatalogProduct', CatalogProductSchema);
+registry.register('CatalogVariant', CatalogVariantSchema);
+registry.register('CatalogVariantWithProduct', CatalogVariantWithProductSchema);
+registry.register('GetCatalogProductsResponse', GetCatalogProductsResponseSchema);
+registry.register('GetCatalogVariantsResponse', GetCatalogVariantsResponseSchema);
+registry.register('Offer', OfferSchema);
+registry.register('OfferStatus', OfferStatusSchema);
+registry.register('OfferWithDetails', OfferWithDetailsSchema);
+registry.register('SaveOfferDraft', SaveOfferDraftSchema);
+registry.register('PublishOffer', PublishOfferSchema);
+registry.register('UpdateOfferStatus', UpdateOfferStatusSchema);
+registry.register('GetSellerOffersResponse', GetSellerOffersResponseSchema);

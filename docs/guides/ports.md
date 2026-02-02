@@ -1,4 +1,4 @@
-# Port Configuration Quick Reference
+# Port Configuration Guide
 
 ## Port Assignments
 
@@ -17,14 +17,31 @@
 └─────────────────────────────────────────────────┘
 ```
 
+## Quick Reference
+
+| App | Port | URL |
+|-----|------|-----|
+| **web** (Next.js) | 3000 | http://localhost:3000 |
+| **admin** (Next.js) | 3001 | http://localhost:3001 |
+| **seller** (Next.js) | 3002 | http://localhost:3002 |
+| **api** (NestJS) | 4000 | http://localhost:4000 |
+
+## Rationale
+
+- **Frontend apps (3000-3002)**: Sequential ports for Next.js applications
+- **Backend API (4000)**: Separate port range to avoid conflicts with frontend
+- **Swagger docs**: http://localhost:4000/docs
+
 ## Usage
 
 ### Start All Apps
+
 ```bash
 pnpm dev
 ```
 
 ### Start Individual Apps
+
 ```bash
 pnpm dev:web      # → http://localhost:3000
 pnpm dev:admin    # → http://localhost:3001
@@ -89,8 +106,4 @@ open http://localhost:4000/docs
 ✅ Clear frontend/backend separation  
 ✅ Easy to remember  
 ✅ All apps can run simultaneously  
-✅ Proper CORS configuration  
-
----
-
-See **PORT_STANDARDIZATION.md** for detailed information.
+✅ Proper CORS configuration

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { QueryProvider } from '@/components/query-provider';
-import { SidebarProvider, SidebarInset } from '@workspace/ui';
+import { SidebarProvider, SidebarInset, Toaster } from '@workspace/ui';
 import { AppSidebar } from '@/components/ui/app-sidebar';
 const fontSans = Geist({
   subsets: ['latin'],
@@ -32,6 +32,7 @@ export default function RootLayout({
               <Providers>{children}</Providers>
             </SidebarInset>
           </SidebarProvider>
+          <Toaster />
         </QueryProvider>
       </body>
     </html>

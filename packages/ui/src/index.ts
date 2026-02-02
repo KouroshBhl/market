@@ -21,3 +21,7 @@ export * from './components/collapsible';
 export * from './components/table';
 export * from './components/badge';
 export * from './components/alert';
+export * from './components/switch';
+export * from './components/toast';
+export * from './components/toaster';
+export * from './hooks/use-toast';

@@ -6,3 +6,5 @@ export * from './currency.schema';
 export * from './product.schema';
 export * from './delivery-type.schema';
 export * from './product-draft.schema';
+export * from './catalog.schema';
+export * from './offer.schema';

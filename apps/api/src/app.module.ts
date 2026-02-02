@@ -6,6 +6,8 @@ import { HealthModule } from './health/health.module';
 import { VersionModule } from './version/version.module';
 import { ProductsModule } from './products/products.module';
 import { CategoriesModule } from './categories/categories.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { OffersModule } from './offers/offers.module';
 import { OpenApiModule } from './openapi/openapi.module';
 
 @Module({
@@ -19,6 +21,8 @@ import { OpenApiModule } from './openapi/openapi.module';
     VersionModule,
     ProductsModule,
     CategoriesModule,
+    CatalogModule,
+    OffersModule,
     OpenApiModule,
   ],
 })

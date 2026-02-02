@@ -68,8 +68,9 @@ export default function ProductsPage() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: (row, columnId, filterValue) => {
-      const title = row.getValue("title") as string | null
-      return title?.toLowerCase().includes(filterValue.toLowerCase()) ?? false
+      const offer = row.original as any
+      const productName = offer.variant?.product?.name || ""
+      return productName.toLowerCase().includes(filterValue.toLowerCase())
     },
   })
 
@@ -97,11 +98,11 @@ export default function ProductsPage() {
         <div className="mx-auto w-full max-w-7xl">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">Products</h1>
-              <p className="text-muted-foreground">Manage your product catalog</p>
+              <h1 className="text-3xl font-bold">My Offers</h1>
+              <p className="text-muted-foreground">Manage your marketplace offers</p>
             </div>
             <Button onClick={() => window.location.href = '/products/new'}>
-              + New Product
+              + New Offer
             </Button>
           </div>
 
@@ -110,7 +111,7 @@ export default function ProductsPage() {
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <Input
-                  placeholder="Search products by title..."
+                  placeholder="Search offers by product name..."
                   value={globalFilter}
                   onChange={(e) => setGlobalFilter(e.target.value)}
                   className="max-w-sm"
@@ -126,14 +127,15 @@ export default function ProductsPage() {
                   } else {
                     setColumnFilters(prev => [
                       ...prev.filter(f => f.id !== "status"),
-                      { id: "status", value }
+                      { id: "status", value: value.toLowerCase() }
                     ])
                   }
                 }}
               >
                 <option value="ALL">All Status</option>
-                <option value="DRAFT">Draft</option>
-                <option value="ACTIVE">Active</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </Select>
 
               <Button
@@ -152,12 +154,12 @@ export default function ProductsPage() {
               {isLoading ? (
                 <div className="p-8 text-center">
                   <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-                  <p className="mt-2 text-muted-foreground">Loading products...</p>
+                  <p className="mt-2 text-muted-foreground">Loading offers...</p>
                 </div>
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-destructive mb-4">
-                    Failed to load products: {error instanceof Error ? error.message : 'Unknown error'}
+                    Failed to load offers: {error instanceof Error ? error.message : 'Unknown error'}
                   </p>
                   <Button onClick={() => refetch()}>Retry</Button>
                 </div>
@@ -203,7 +205,7 @@ export default function ProductsPage() {
                             colSpan={columns.length}
                             className="h-24 text-center"
                           >
-                            No products found.
+                            No offers found. Create your first offer to get started!
                           </TableCell>
                         </TableRow>
                       )}
@@ -259,7 +261,7 @@ export default function ProductsPage() {
 
             {/* Stats */}
             <div className="mt-4 text-sm text-muted-foreground">
-              Showing {table.getRowModel().rows.length} of {products.length} products
+              Showing {table.getRowModel().rows.length} of {products.length} offers
             </div>
           </Card>
         </div>

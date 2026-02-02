@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { DeliveryType, Currency } from '@workspace/contracts';
+import type { DeliveryType, Currency, CatalogProduct, CatalogVariant } from '@workspace/contracts';
 import {
   Button,
   Alert,
@@ -17,12 +17,14 @@ import {
   BreadcrumbSeparator,
   Card,
   Input,
-  Textarea,
   Label,
   Badge,
+  toast,
 } from '@workspace/ui';
 import { DeliveryTypeCard } from '@/components/delivery-type-card';
 import { CategorySelector } from '@/components/category-selector';
+import { CatalogProductSelector } from '@/components/catalog-product-selector';
+import { VariantSelector } from '@/components/variant-selector';
 import { useQuery } from '@tanstack/react-query';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -30,37 +32,35 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 // For now, hardcode sellerId until auth is implemented
 const SELLER_ID = '00000000-0000-0000-0000-000000000001';
 
-type Step = 'delivery-type' | 'category' | 'basic-info' | 'delivery-config' | 'review';
+type Step = 'delivery-type' | 'category' | 'product' | 'variant' | 'pricing' | 'review';
 
 interface WizardState {
   deliveryType: DeliveryType | null;
   categoryId: string | null;
-  title: string;
-  description: string;
+  productId: string | null;
+  variantId: string | null;
   priceAmount: string; // Keep as string for input
   currency: Currency;
-  // Auto key config
-  autoDelivery: boolean;
-  stockAlert: string;
-  // Manual delivery config
+  stockCount: string;
+  // Manual delivery
   deliveryInstructions: string;
-  estimatedDeliverySLA: string;
+  // Auto key (placeholder for now)
+  keyPoolId: string;
 }
 
 const INITIAL_STATE: WizardState = {
   deliveryType: null,
   categoryId: null,
-  title: '',
-  description: '',
+  productId: null,
+  variantId: null,
   priceAmount: '',
   currency: 'USD',
-  autoDelivery: true,
-  stockAlert: '',
+  stockCount: '',
   deliveryInstructions: '',
-  estimatedDeliverySLA: '',
+  keyPoolId: '',
 };
 
-export default function NewProductPage() {
+export default function NewOfferPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('delivery-type');
   const [wizardState, setWizardState] = useState<WizardState>(INITIAL_STATE);
@@ -68,7 +68,7 @@ export default function NewProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Fetch categories for category selection step
+  // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -76,6 +76,38 @@ export default function NewProductPage() {
       if (!response.ok) throw new Error('Failed to fetch categories');
       return response.json();
     },
+  });
+
+  // Fetch catalog products for selected category
+  const { data: catalogProductsData, isLoading: productsLoading } = useQuery<{
+    products: CatalogProduct[];
+  }>({
+    queryKey: ['catalog-products', wizardState.categoryId],
+    queryFn: async () => {
+      const url = new URL(`${API_URL}/catalog/products`);
+      if (wizardState.categoryId) {
+        url.searchParams.set('categoryId', wizardState.categoryId);
+      }
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch products');
+      return response.json();
+    },
+    enabled: !!wizardState.categoryId,
+  });
+
+  // Fetch variants for selected product
+  const { data: variantsData, isLoading: variantsLoading } = useQuery<{
+    variants: CatalogVariant[];
+  }>({
+    queryKey: ['catalog-variants', wizardState.productId],
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_URL}/catalog/products/${wizardState.productId}/variants`
+      );
+      if (!response.ok) throw new Error('Failed to fetch variants');
+      return response.json();
+    },
+    enabled: !!wizardState.productId,
   });
 
   const updateState = (updates: Partial<WizardState>) => {
@@ -92,22 +124,15 @@ export default function NewProductPage() {
 
   const canProceedFromDeliveryType = wizardState.deliveryType !== null;
   const canProceedFromCategory = wizardState.categoryId !== null;
-  const canProceedFromBasicInfo = 
-    wizardState.title.trim() !== '' && 
-    wizardState.priceAmount.trim() !== '' &&
+  const canProceedFromProduct = wizardState.productId !== null;
+  const canProceedFromVariant = wizardState.variantId !== null;
+  const canProceedFromPricing = 
+    wizardState.priceAmount.trim() !== '' && 
     !isNaN(Number(wizardState.priceAmount)) &&
-    Number(wizardState.priceAmount) >= 0;
-
-  const canProceedFromDeliveryConfig = () => {
-    if (wizardState.deliveryType === 'AUTO_KEY') {
-      return true; // Optional fields
-    } else if (wizardState.deliveryType === 'MANUAL') {
-      return true; // Optional fields
-    }
-    return false;
-  };
+    Number(wizardState.priceAmount) > 0;
 
   const handleSaveDraft = async () => {
+    console.log('💾 Saving draft...');
     setLoading(true);
     setError(null);
     setValidationErrors([]);
@@ -119,108 +144,138 @@ export default function NewProductPage() {
       };
 
       // Add optional fields if provided
-      if (wizardState.categoryId) payload.categoryId = wizardState.categoryId;
-      if (wizardState.title.trim()) payload.title = wizardState.title.trim();
-      if (wizardState.description.trim()) payload.description = wizardState.description.trim();
+      if (wizardState.variantId) payload.variantId = wizardState.variantId;
       if (wizardState.priceAmount.trim() && !isNaN(Number(wizardState.priceAmount))) {
         payload.priceAmount = Math.round(Number(wizardState.priceAmount) * 100); // Convert to cents
       }
       if (wizardState.currency) payload.currency = wizardState.currency;
-
-      // Add delivery config
-      if (wizardState.deliveryType === 'AUTO_KEY') {
-        payload.autoKeyConfig = {
-          autoDelivery: wizardState.autoDelivery,
-          stockAlert: wizardState.stockAlert ? Number(wizardState.stockAlert) : null,
-          keyPoolId: null,
-        };
-      } else if (wizardState.deliveryType === 'MANUAL') {
-        payload.manualDeliveryConfig = {
-          deliveryInstructions: wizardState.deliveryInstructions || null,
-          estimatedDeliverySLA: wizardState.estimatedDeliverySLA ? Number(wizardState.estimatedDeliverySLA) : null,
-        };
+      if (wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+        payload.stockCount = Number(wizardState.stockCount);
       }
 
-      const response = await fetch(`${API_URL}/products/draft`, {
+      // Add delivery config based on type
+      if (wizardState.deliveryType === 'MANUAL') {
+        payload.deliveryInstructions = wizardState.deliveryInstructions || null;
+      } else if (wizardState.deliveryType === 'AUTO_KEY') {
+        payload.keyPoolId = wizardState.keyPoolId || null;
+      }
+
+      console.log('📤 Saving draft payload:', JSON.stringify(payload, null, 2));
+
+      const response = await fetch(`${API_URL}/offers/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      console.log('📥 Draft response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ Draft error:', errorData);
         throw new Error(errorData.message || 'Failed to save draft');
       }
 
-      const draft = await response.json();
-      router.push(`/products`);
+      const result = await response.json();
+      console.log('✅ Draft saved:', result);
+      
+      toast({
+        title: "✓ Success",
+        description: "Draft saved successfully!",
+        variant: "success",
+      });
+      
+      setTimeout(() => router.push('/products'), 1000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save draft');
+      console.error('💥 Draft save error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save draft';
+      setError(errorMessage);
+      toast({
+        title: "✕ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handlePublish = async () => {
+    console.log('🚀 Starting publish process...');
     setLoading(true);
     setError(null);
     setValidationErrors([]);
 
     try {
-      // First save as draft
+      // Validate required fields before sending
+      if (!wizardState.variantId) {
+        throw new Error('Please select a variant');
+      }
+      if (!wizardState.priceAmount || Number(wizardState.priceAmount) <= 0) {
+        throw new Error('Please enter a valid price greater than 0');
+      }
+
       const payload: any = {
         sellerId: SELLER_ID,
         deliveryType: wizardState.deliveryType,
-        categoryId: wizardState.categoryId,
-        title: wizardState.title.trim(),
-        description: wizardState.description.trim() || null,
+        variantId: wizardState.variantId,
         priceAmount: Math.round(Number(wizardState.priceAmount) * 100),
         currency: wizardState.currency,
       };
 
-      if (wizardState.deliveryType === 'AUTO_KEY') {
-        payload.autoKeyConfig = {
-          autoDelivery: wizardState.autoDelivery,
-          stockAlert: wizardState.stockAlert ? Number(wizardState.stockAlert) : null,
-          keyPoolId: null,
-        };
-      } else if (wizardState.deliveryType === 'MANUAL') {
-        payload.manualDeliveryConfig = {
-          deliveryInstructions: wizardState.deliveryInstructions || null,
-          estimatedDeliverySLA: wizardState.estimatedDeliverySLA ? Number(wizardState.estimatedDeliverySLA) : null,
-        };
+      if (wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+        payload.stockCount = Number(wizardState.stockCount);
       }
 
-      const draftResponse = await fetch(`${API_URL}/products/draft`, {
+      // Add delivery config
+      if (wizardState.deliveryType === 'MANUAL') {
+        payload.deliveryInstructions = wizardState.deliveryInstructions || null;
+      } else if (wizardState.deliveryType === 'AUTO_KEY') {
+        payload.keyPoolId = wizardState.keyPoolId || null;
+      }
+
+      console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+
+      const response = await fetch(`${API_URL}/offers/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (!draftResponse.ok) {
-        const errorData = await draftResponse.json();
-        throw new Error(errorData.message || 'Failed to save draft');
-      }
+      console.log('📥 Response status:', response.status, response.statusText);
 
-      const draft = await draftResponse.json();
-
-      // Then publish
-      const publishResponse = await fetch(`${API_URL}/products/${draft.id}/publish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!publishResponse.ok) {
-        const errorData = await publishResponse.json();
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Error response:', errorData);
+        
         if (errorData.errors && Array.isArray(errorData.errors)) {
           setValidationErrors(errorData.errors);
         }
-        throw new Error(errorData.message || 'Failed to publish product');
+        throw new Error(errorData.message || 'Failed to publish offer');
       }
 
-      router.push(`/products`);
+      const result = await response.json();
+      console.log('✅ Offer published successfully:', result);
+      
+      // Show success message
+      toast({
+        title: "✓ Success",
+        description: "Offer published successfully!",
+        variant: "success",
+      });
+      
+      // Redirect to products page after a short delay
+      setTimeout(() => router.push('/products'), 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to publish product');
+      console.error('💥 Publish error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to publish offer';
+      setError(errorMessage);
+      // Also show toast for immediate feedback
+      toast({
+        title: "✕ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -301,10 +356,10 @@ export default function NewProductPage() {
           <div>
             <div className='mb-8'>
               <h2 className='text-2xl font-bold text-foreground mb-2'>
-                Select Product Category
+                Select Category
               </h2>
               <p className='text-muted-foreground'>
-                Choose the category that best describes your product
+                Choose the category to browse catalog products
               </p>
             </div>
 
@@ -317,7 +372,7 @@ export default function NewProductPage() {
               <CategorySelector
                 categories={categoriesData.parents}
                 selectedCategoryId={wizardState.categoryId}
-                onSelect={(id) => updateState({ categoryId: id })}
+                onSelect={(id) => updateState({ categoryId: id, productId: null, variantId: null })}
               />
             ) : (
               <Alert variant='destructive'>
@@ -330,57 +385,114 @@ export default function NewProductPage() {
                 ← Back
               </Button>
               <Button 
-                onClick={() => goToStep('basic-info')}
+                onClick={() => goToStep('product')}
                 disabled={!canProceedFromCategory}
               >
-                Next: Basic Information →
+                Next: Select Product →
               </Button>
             </div>
           </div>
         );
 
-      case 'basic-info':
+      case 'product':
         return (
           <div>
             <div className='mb-8'>
               <h2 className='text-2xl font-bold text-foreground mb-2'>
-                Basic Product Information
+                Select Catalog Product
               </h2>
               <p className='text-muted-foreground'>
-                Provide the essential details about your product
+                Choose a product from the marketplace catalog
+              </p>
+            </div>
+
+            {productsLoading ? (
+              <div className='text-center py-12'>
+                <div className='w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto'></div>
+                <p className='text-muted-foreground mt-4'>Loading products...</p>
+              </div>
+            ) : catalogProductsData?.products ? (
+              <CatalogProductSelector
+                products={catalogProductsData.products}
+                selectedProductId={wizardState.productId}
+                onSelect={(id) => updateState({ productId: id, variantId: null })}
+              />
+            ) : (
+              <Alert variant='destructive'>
+                <AlertDescription>Failed to load products</AlertDescription>
+              </Alert>
+            )}
+
+            <div className='mt-8 flex gap-4'>
+              <Button variant='ghost' onClick={() => goToStep('category')}>
+                ← Back
+              </Button>
+              <Button 
+                onClick={() => goToStep('variant')}
+                disabled={!canProceedFromProduct}
+              >
+                Next: Select Variant →
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'variant':
+        return (
+          <div>
+            <div className='mb-8'>
+              <h2 className='text-2xl font-bold text-foreground mb-2'>
+                Select Variant
+              </h2>
+              <p className='text-muted-foreground'>
+                Choose a variant (region/duration/edition) to create your offer for
+              </p>
+            </div>
+
+            {variantsLoading ? (
+              <div className='text-center py-12'>
+                <div className='w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto'></div>
+                <p className='text-muted-foreground mt-4'>Loading variants...</p>
+              </div>
+            ) : variantsData?.variants ? (
+              <VariantSelector
+                variants={variantsData.variants}
+                selectedVariantId={wizardState.variantId}
+                onSelect={(id) => updateState({ variantId: id })}
+              />
+            ) : (
+              <Alert variant='destructive'>
+                <AlertDescription>Failed to load variants</AlertDescription>
+              </Alert>
+            )}
+
+            <div className='mt-8 flex gap-4'>
+              <Button variant='ghost' onClick={() => goToStep('product')}>
+                ← Back
+              </Button>
+              <Button 
+                onClick={() => goToStep('pricing')}
+                disabled={!canProceedFromVariant}
+              >
+                Next: Set Pricing →
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'pricing':
+        return (
+          <div>
+            <div className='mb-8'>
+              <h2 className='text-2xl font-bold text-foreground mb-2'>
+                Pricing & Delivery
+              </h2>
+              <p className='text-muted-foreground'>
+                Set your offer price and delivery configuration
               </p>
             </div>
 
             <Card className='p-6 space-y-6'>
-              <div className='space-y-2'>
-                <Label htmlFor='title'>Product Title *</Label>
-                <Input
-                  id='title'
-                  value={wizardState.title}
-                  onChange={(e) => updateState({ title: e.target.value })}
-                  placeholder='e.g., World of Warcraft Gold - 1000g'
-                  maxLength={200}
-                />
-                <p className='text-xs text-muted-foreground'>
-                  {wizardState.title.length} / 200 characters
-                </p>
-              </div>
-
-              <div className='space-y-2'>
-                <Label htmlFor='description'>Description</Label>
-                <Textarea
-                  id='description'
-                  value={wizardState.description}
-                  onChange={(e) => updateState({ description: e.target.value })}
-                  placeholder='Describe your product, delivery process, any special terms...'
-                  rows={6}
-                  maxLength={5000}
-                />
-                <p className='text-xs text-muted-foreground'>
-                  {wizardState.description.length} / 5000 characters
-                </p>
-              </div>
-
               <div className='grid grid-cols-2 gap-4'>
                 <div className='space-y-2'>
                   <Label htmlFor='price'>Price * (in dollars)</Label>
@@ -388,7 +500,7 @@ export default function NewProductPage() {
                     id='price'
                     type='number'
                     step='0.01'
-                    min='0'
+                    min='0.01'
                     value={wizardState.priceAmount}
                     onChange={(e) => updateState({ priceAmount: e.target.value })}
                     placeholder='9.99'
@@ -411,116 +523,62 @@ export default function NewProductPage() {
                   </select>
                 </div>
               </div>
-            </Card>
 
-            <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => goToStep('category')}>
-                ← Back
-              </Button>
-              <Button 
-                onClick={() => goToStep('delivery-config')}
-                disabled={!canProceedFromBasicInfo}
-              >
-                Next: Delivery Configuration →
-              </Button>
-            </div>
-          </div>
-        );
+              <div className='space-y-2'>
+                <Label htmlFor='stockCount'>Stock Count (optional)</Label>
+                <Input
+                  id='stockCount'
+                  type='number'
+                  min='0'
+                  value={wizardState.stockCount}
+                  onChange={(e) => updateState({ stockCount: e.target.value })}
+                  placeholder='e.g., 100'
+                />
+                <p className='text-xs text-muted-foreground'>
+                  Manual stock tracking. Leave empty for unlimited.
+                </p>
+              </div>
 
-      case 'delivery-config':
-        return (
-          <div>
-            <div className='mb-8'>
-              <h2 className='text-2xl font-bold text-foreground mb-2'>
-                Delivery Configuration
-              </h2>
-              <p className='text-muted-foreground'>
-                Configure how this product will be delivered
-              </p>
-            </div>
+              {wizardState.deliveryType === 'MANUAL' && (
+                <div className='space-y-2'>
+                  <Label htmlFor='deliveryInstructions'>
+                    Delivery Instructions (optional but recommended)
+                  </Label>
+                  <Input
+                    id='deliveryInstructions'
+                    value={wizardState.deliveryInstructions}
+                    onChange={(e) => updateState({ deliveryInstructions: e.target.value })}
+                    placeholder='Instructions for fulfilling this order...'
+                  />
+                </div>
+              )}
 
-            <Card className='p-6 space-y-6'>
-              {wizardState.deliveryType === 'AUTO_KEY' ? (
-                <>
-                  <div className='flex items-center gap-2 mb-4'>
-                    <Badge>Automatic Key Delivery</Badge>
-                  </div>
-
-                  <div className='space-y-2'>
-                    <Label htmlFor='autoDelivery' className='flex items-center gap-2'>
-                      <input
-                        type='checkbox'
-                        id='autoDelivery'
-                        checked={wizardState.autoDelivery}
-                        onChange={(e) => updateState({ autoDelivery: e.target.checked })}
-                        className='w-4 h-4'
-                      />
-                      Enable automatic delivery
-                    </Label>
-                    <p className='text-xs text-muted-foreground ml-6'>
-                      Keys will be delivered immediately after payment confirmation
-                    </p>
-                  </div>
-
-                  <div className='space-y-2'>
-                    <Label htmlFor='stockAlert'>Low Stock Alert (optional)</Label>
-                    <Input
-                      id='stockAlert'
-                      type='number'
-                      min='0'
-                      value={wizardState.stockAlert}
-                      onChange={(e) => updateState({ stockAlert: e.target.value })}
-                      placeholder='e.g., 10'
-                    />
-                    <p className='text-xs text-muted-foreground'>
-                      Get notified when available keys fall below this number
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className='flex items-center gap-2 mb-4'>
-                    <Badge>Manual Fulfillment</Badge>
-                  </div>
-
-                  <div className='space-y-2'>
-                    <Label htmlFor='deliveryInstructions'>Delivery Instructions (optional)</Label>
-                    <Textarea
-                      id='deliveryInstructions'
-                      value={wizardState.deliveryInstructions}
-                      onChange={(e) => updateState({ deliveryInstructions: e.target.value })}
-                      placeholder='Instructions for yourself on how to fulfill this order...'
-                      rows={4}
-                      maxLength={5000}
-                    />
-                  </div>
-
-                  <div className='space-y-2'>
-                    <Label htmlFor='estimatedSLA'>Estimated Delivery Time (optional)</Label>
-                    <div className='flex gap-2 items-center'>
-                      <Input
-                        id='estimatedSLA'
-                        type='number'
-                        min='0'
-                        value={wizardState.estimatedDeliverySLA}
-                        onChange={(e) => updateState({ estimatedDeliverySLA: e.target.value })}
-                        placeholder='24'
-                        className='w-32'
-                      />
-                      <span className='text-sm text-muted-foreground'>hours</span>
-                    </div>
-                  </div>
-                </>
+              {wizardState.deliveryType === 'AUTO_KEY' && (
+                <div className='space-y-2'>
+                  <Label htmlFor='keyPoolId'>
+                    Key Pool ID (placeholder - leave empty for MVP)
+                  </Label>
+                  <Input
+                    id='keyPoolId'
+                    value={wizardState.keyPoolId}
+                    onChange={(e) => updateState({ keyPoolId: e.target.value })}
+                    placeholder='Key pool not implemented yet'
+                    disabled
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Key pool management will be implemented in a future phase.
+                  </p>
+                </div>
               )}
             </Card>
 
             <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => goToStep('basic-info')}>
+              <Button variant='ghost' onClick={() => goToStep('variant')}>
                 ← Back
               </Button>
               <Button 
                 onClick={() => goToStep('review')}
-                disabled={!canProceedFromDeliveryConfig()}
+                disabled={!canProceedFromPricing}
               >
                 Next: Review →
               </Button>
@@ -528,7 +586,11 @@ export default function NewProductPage() {
           </div>
         );
 
+
       case 'review':
+        const selectedVariant = variantsData?.variants.find((v) => v.id === wizardState.variantId);
+        const selectedProduct = catalogProductsData?.products.find((p) => p.id === wizardState.productId);
+
         return (
           <div>
             <div className='mb-8'>
@@ -536,7 +598,7 @@ export default function NewProductPage() {
                 Review & Publish
               </h2>
               <p className='text-muted-foreground'>
-                Review your product details before publishing
+                Review your offer details before publishing
               </p>
             </div>
 
@@ -549,65 +611,93 @@ export default function NewProductPage() {
               <Separator />
 
               <div>
-                <h3 className='font-semibold text-foreground mb-2'>Product Details</h3>
-                <dl className='space-y-2 text-sm'>
-                  <div>
-                    <dt className='text-muted-foreground'>Title:</dt>
-                    <dd className='text-foreground'>{wizardState.title}</dd>
+                <h3 className='font-semibold text-foreground mb-2'>Product</h3>
+                {selectedProduct && (
+                  <div className='text-sm'>
+                    <p className='font-medium text-foreground'>{selectedProduct.name}</p>
+                    {selectedProduct.description && (
+                      <p className='text-muted-foreground mt-1'>{selectedProduct.description}</p>
+                    )}
                   </div>
-                  {wizardState.description && (
-                    <div>
-                      <dt className='text-muted-foreground'>Description:</dt>
-                      <dd className='text-foreground'>{wizardState.description}</dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt className='text-muted-foreground'>Price:</dt>
-                    <dd className='text-foreground'>{wizardState.currency} ${wizardState.priceAmount}</dd>
-                  </div>
-                </dl>
+                )}
               </div>
 
               <Separator />
 
               <div>
-                <h3 className='font-semibold text-foreground mb-2'>Delivery Configuration</h3>
-                {wizardState.deliveryType === 'AUTO_KEY' ? (
+                <h3 className='font-semibold text-foreground mb-2'>Variant</h3>
+                {selectedVariant && (
                   <dl className='space-y-2 text-sm'>
                     <div>
-                      <dt className='text-muted-foreground'>Auto Delivery:</dt>
-                      <dd className='text-foreground'>{wizardState.autoDelivery ? 'Enabled' : 'Disabled'}</dd>
+                      <dt className='text-muted-foreground'>Region:</dt>
+                      <dd className='text-foreground'>{selectedVariant.region}</dd>
                     </div>
-                    {wizardState.stockAlert && (
+                    <div>
+                      <dt className='text-muted-foreground'>Duration:</dt>
+                      <dd className='text-foreground'>
+                        {selectedVariant.durationDays ? `${selectedVariant.durationDays} days` : 'N/A'}
+                      </dd>
+                    </div>
+                    {selectedVariant.edition && (
                       <div>
-                        <dt className='text-muted-foreground'>Low Stock Alert:</dt>
-                        <dd className='text-foreground'>{wizardState.stockAlert} keys</dd>
+                        <dt className='text-muted-foreground'>Edition:</dt>
+                        <dd className='text-foreground'>{selectedVariant.edition}</dd>
                       </div>
                     )}
-                  </dl>
-                ) : (
-                  <dl className='space-y-2 text-sm'>
-                    {wizardState.deliveryInstructions && (
-                      <div>
-                        <dt className='text-muted-foreground'>Instructions:</dt>
-                        <dd className='text-foreground'>{wizardState.deliveryInstructions}</dd>
-                      </div>
-                    )}
-                    {wizardState.estimatedDeliverySLA && (
-                      <div>
-                        <dt className='text-muted-foreground'>Estimated Delivery:</dt>
-                        <dd className='text-foreground'>{wizardState.estimatedDeliverySLA} hours</dd>
-                      </div>
-                    )}
+                    <div>
+                      <dt className='text-muted-foreground'>SKU:</dt>
+                      <dd className='text-foreground font-mono text-xs'>{selectedVariant.sku}</dd>
+                    </div>
                   </dl>
                 )}
               </div>
+
+              <Separator />
+
+              <div>
+                <h3 className='font-semibold text-foreground mb-2'>Pricing</h3>
+                <dl className='space-y-2 text-sm'>
+                  <div>
+                    <dt className='text-muted-foreground'>Price:</dt>
+                    <dd className='text-foreground font-semibold'>{wizardState.currency} ${wizardState.priceAmount}</dd>
+                  </div>
+                  {wizardState.stockCount && (
+                    <div>
+                      <dt className='text-muted-foreground'>Stock Count:</dt>
+                      <dd className='text-foreground'>{wizardState.stockCount} units</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+
+              {(wizardState.deliveryInstructions || wizardState.keyPoolId) && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className='font-semibold text-foreground mb-2'>Delivery Config</h3>
+                    <dl className='space-y-2 text-sm'>
+                      {wizardState.deliveryInstructions && (
+                        <div>
+                          <dt className='text-muted-foreground'>Instructions:</dt>
+                          <dd className='text-foreground'>{wizardState.deliveryInstructions}</dd>
+                        </div>
+                      )}
+                      {wizardState.keyPoolId && (
+                        <div>
+                          <dt className='text-muted-foreground'>Key Pool:</dt>
+                          <dd className='text-foreground'>{wizardState.keyPoolId}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                </>
+              )}
             </Card>
 
             {validationErrors.length > 0 && (
               <Alert variant='destructive' className='mt-4'>
                 <AlertDescription>
-                  <p className='font-semibold mb-2'>Cannot publish product:</p>
+                  <p className='font-semibold mb-2'>Cannot publish offer:</p>
                   <ul className='list-disc list-inside space-y-1'>
                     {validationErrors.map((err, idx) => (
                       <li key={idx}>{err}</li>
@@ -618,7 +708,7 @@ export default function NewProductPage() {
             )}
 
             <div className='mt-8 flex gap-4'>
-              <Button variant='ghost' onClick={() => goToStep('delivery-config')}>
+              <Button variant='ghost' onClick={() => goToStep('pricing')}>
                 ← Back
               </Button>
               <Button 
@@ -630,9 +720,9 @@ export default function NewProductPage() {
               </Button>
               <Button 
                 onClick={handlePublish}
-                disabled={loading || !canProceedFromBasicInfo}
+                disabled={loading || !canProceedFromPricing}
               >
-                {loading ? 'Publishing...' : 'Publish Product'}
+                {loading ? 'Publishing...' : 'Publish Offer'}
               </Button>
             </div>
           </div>
@@ -656,7 +746,7 @@ export default function NewProductPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>New Product</BreadcrumbPage>
+              <BreadcrumbPage>New Offer</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -667,22 +757,22 @@ export default function NewProductPage() {
           {/* Progress indicator */}
           <div className='mb-8'>
             <div className='flex items-center justify-between'>
-              {['delivery-type', 'category', 'basic-info', 'delivery-config', 'review'].map((step, idx) => (
+              {(['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'] as Step[]).map((step, idx) => (
                 <div key={step} className='flex items-center'>
                   <div 
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
                       ${currentStep === step ? 'bg-ring text-background' : 
-                        ['delivery-type', 'category', 'basic-info', 'delivery-config', 'review'].indexOf(currentStep) > idx
+                        ['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'].indexOf(currentStep) > idx
                         ? 'bg-accent text-accent-foreground' 
                         : 'bg-muted text-muted-foreground'}
                     `}
                   >
                     {idx + 1}
                   </div>
-                  {idx < 4 && (
+                  {idx < 5 && (
                     <div className={`w-12 h-1 mx-2 ${
-                      ['delivery-type', 'category', 'basic-info', 'delivery-config', 'review'].indexOf(currentStep) > idx
+                      ['delivery-type', 'category', 'product', 'variant', 'pricing', 'review'].indexOf(currentStep) > idx
                         ? 'bg-accent' 
                         : 'bg-muted'
                     }`} />

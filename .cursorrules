@@ -23,6 +23,7 @@
   - ONLY Prisma schema/client.
 - apps/\*:
   - App state, React Query providers, TanStack Table columns, business flows, API calls.
+    “No random markdown files in root; put docs in /docs.”
 
 # ---- UI / Theme Rules (STRICT) ----
 

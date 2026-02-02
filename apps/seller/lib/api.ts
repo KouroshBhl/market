@@ -1,17 +1,19 @@
-import type { Product, SaveProductDraft, ProductDraft } from '@workspace/contracts';
+import type { Product, SaveProductDraft, ProductDraft, OfferWithDetails } from '@workspace/contracts';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const SELLER_ID = '00000000-0000-0000-0000-000000000001'; // Hardcoded for MVP
 
-export async function getProducts(): Promise<Product[]> {
-  const response = await fetch(`${API_URL}/products`, {
+export async function getProducts(): Promise<OfferWithDetails[]> {
+  const response = await fetch(`${API_URL}/seller/offers?sellerId=${SELLER_ID}`, {
     cache: 'no-store',
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch products');
+    throw new Error('Failed to fetch offers');
   }
 
-  return response.json();
+  const data = await response.json();
+  return data.offers; // API returns { offers: [...] }
 }
 
 export async function saveProductDraft(data: SaveProductDraft): Promise<ProductDraft> {

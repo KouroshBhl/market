@@ -29,6 +29,19 @@ enum ProductStatus {
   inactive
 }
 
+enum Region {
+  EU
+  US
+  TR
+  GLOBAL
+}
+
+enum OfferStatus {
+  draft
+  active
+  inactive
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -46,9 +59,10 @@ model Category {
   updatedAt DateTime   @updatedAt @map("updated_at")
 
   // Self-reference for parent-child relationship
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children Category[] @relation("CategoryHierarchy")
-  products Product[]
+  parent   Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Category[]       @relation("CategoryHierarchy")
+  products Product[]        // Legacy - keep for backward compatibility
+  catalogProducts CatalogProduct[]
 
   // Constraints
   @@unique([slug, parentId], name: "unique_slug_per_level")
@@ -59,15 +73,84 @@ model Category {
   @@map("categories")
 }
 
+// Marketplace catalog: Admin-managed product pages
+model CatalogProduct {
+  id          String   @id @default(uuid())
+  categoryId  String   @map("category_id") // Must be child category
+  name        String
+  slug        String
+  description String?  @db.Text
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants CatalogVariant[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId, isActive])
+  @@index([isActive])
+  @@map("catalog_products")
+}
+
+// Variants: region/duration/edition combinations
+model CatalogVariant {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  region        Region
+  durationDays  Int?     @map("duration_days")
+  edition       String?  // e.g., "Standard", "Deluxe", etc.
+  sku           String   @unique
+  isActive      Boolean  @default(true) @map("is_active")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product CatalogProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  offers  Offer[]
+
+  @@unique([productId, region, durationDays, edition])
+  @@index([productId, isActive])
+  @@index([isActive])
+  @@map("catalog_variants")
+}
+
+// Seller listings for catalog variants
+model Offer {
+  id                   String      @id @default(uuid())
+  sellerId             String      @map("seller_id") // Future: FK to User
+  variantId            String      @map("variant_id")
+  status               OfferStatus @default(draft)
+  deliveryType         DeliveryType @map("delivery_type")
+  priceAmount          Int         @map("price_amount") // In smallest currency unit (cents)
+  currency             Currency
+  stockCount           Int?        @map("stock_count") // Manual tracking or computed from key pool
+  deliveryInstructions String?     @map("delivery_instructions") @db.Text // Required for MANUAL
+  keyPoolId            String?     @map("key_pool_id") // Required for AUTO_KEY (future FK)
+  publishedAt          DateTime?   @map("published_at")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  variant CatalogVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, status])
+  @@index([variantId, status])
+  @@index([status, publishedAt])
+  @@map("offers")
+}
+
+// Legacy Product model - keep for backward compatibility during migration
 model Product {
   id              String        @id @default(uuid())
-  sellerId        String        @map("seller_id") // Future: FK to User when seller role added
+  sellerId        String        @map("seller_id")
   status          ProductStatus @default(draft)
   deliveryType    DeliveryType  @map("delivery_type")
   categoryId      String?       @map("category_id")
   title           String?
   description     String?
-  priceAmount     Int?          @map("price_amount") // In smallest currency unit (cents)
+  priceAmount     Int?          @map("price_amount")
   currency        Currency?
   publishedAt     DateTime?     @map("published_at")
   createdAt       DateTime      @default(now()) @map("created_at")
@@ -77,20 +160,18 @@ model Product {
   autoKeyConfig       ProductAutoKeyConfig?
   manualDeliveryConfig ProductManualDeliveryConfig?
 
-  // Indexes for querying
   @@index([sellerId, status])
   @@index([categoryId])
   @@index([status, publishedAt])
   @@map("products")
 }
 
-// Delivery configuration for AUTO_KEY products
 model ProductAutoKeyConfig {
   id              String   @id @default(uuid())
   productId       String   @unique @map("product_id")
-  keyPoolId       String?  @map("key_pool_id") // Future: FK to key pool
+  keyPoolId       String?  @map("key_pool_id")
   autoDelivery    Boolean  @default(true) @map("auto_delivery")
-  stockAlert      Int?     @map("stock_alert") // Alert when stock falls below this
+  stockAlert      Int?     @map("stock_alert")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -99,12 +180,11 @@ model ProductAutoKeyConfig {
   @@map("product_auto_key_configs")
 }
 
-// Delivery configuration for MANUAL products
 model ProductManualDeliveryConfig {
   id                  String   @id @default(uuid())
   productId           String   @unique @map("product_id")
   deliveryInstructions String?  @map("delivery_instructions") @db.Text
-  estimatedDeliverySLA Int?     @map("estimated_delivery_sla") // In hours
+  estimatedDeliverySLA Int?     @map("estimated_delivery_sla")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 

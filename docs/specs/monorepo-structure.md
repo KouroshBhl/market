@@ -9,8 +9,12 @@ market/
 ├── pnpm-workspace.yaml
 ├── pnpm-lock.yaml
 ├── turbo.json
-├── SETUP.md
-├── STRUCTURE.md
+├── README.md
+├── docs/
+│   ├── README.md
+│   ├── guides/              # How-to guides
+│   ├── specs/               # Architecture docs
+│   └── _archive/            # Historical records
 │
 ├── apps/
 │   ├── web/                      # Customer Next.js app (port 3000)
