@@ -9,6 +9,7 @@ import {
   Alert,
   AlertDescription,
   Badge,
+  Textarea,
   toast,
 } from '@workspace/ui';
 import type { KeyPoolWithCounts, UploadKeysResponse } from '@workspace/contracts';
@@ -98,7 +99,7 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
       setUploadResult(data);
       setKeysText('');
       queryClient.invalidateQueries({ queryKey: ['key-pool', offerId] });
-      queryClient.invalidateQueries({ queryKey: ['seller-offers'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({
         title: "✓ Keys Uploaded",
         description: `Added ${data.added} keys (${data.duplicates} duplicates, ${data.invalid} invalid)`,
@@ -177,7 +178,11 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
         <h3 className="font-semibold text-foreground mb-4">Key Pool</h3>
         
         {/* Key Counts */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="p-3 bg-muted/50 rounded-lg border border-border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total</p>
+            <p className="text-2xl font-bold text-foreground">{keyPool.counts.total}</p>
+          </div>
           <div className="p-3 bg-muted/50 rounded-lg border border-border">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Available</p>
             <p className="text-2xl font-bold text-foreground">{keyPool.counts.available}</p>
@@ -191,8 +196,8 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
             <p className="text-2xl font-bold text-foreground">{keyPool.counts.delivered}</p>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg border border-border">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total</p>
-            <p className="text-2xl font-bold text-foreground">{keyPool.counts.total}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Invalid</p>
+            <p className="text-2xl font-bold text-foreground">{keyPool.counts.invalid}</p>
           </div>
         </div>
 
@@ -214,23 +219,33 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
         <p className="text-sm text-muted-foreground mt-1 mb-3">
           Enter keys below, one per line. Duplicates will be automatically detected and skipped.
         </p>
-        <textarea
+        <Textarea
           id="keys-textarea"
-          className="w-full h-40 p-3 border border-border rounded-lg bg-background text-foreground font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+          className="min-h-[10rem] font-mono text-sm resize-none"
           placeholder="XXXX-XXXX-XXXX-XXXX&#10;YYYY-YYYY-YYYY-YYYY&#10;ZZZZ-ZZZZ-ZZZZ-ZZZZ"
           value={keysText}
           onChange={(e) => setKeysText(e.target.value)}
         />
-        <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
           <p className="text-xs text-muted-foreground">
             {keysText.split('\n').filter((k) => k.trim().length > 0).length} keys entered
           </p>
-          <Button
-            onClick={handleUpload}
-            disabled={uploadKeysMutation.isPending || keysText.trim().length === 0}
-          >
-            {uploadKeysMutation.isPending ? 'Uploading...' : 'Upload Keys'}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Coming soon"
+            >
+              Upload from file
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={uploadKeysMutation.isPending || keysText.trim().length === 0}
+            >
+              {uploadKeysMutation.isPending ? 'Uploading...' : 'Upload Keys'}
+            </Button>
+          </div>
         </div>
       </div>
 
