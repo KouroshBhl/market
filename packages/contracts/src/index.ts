@@ -52,6 +52,13 @@ import {
   GetKeyPoolResponseSchema,
   InvalidateKeyResponseSchema,
   AvailabilityStatusSchema,
+  KeyListItemSchema,
+  ListKeysResponseSchema,
+  KeyPoolStatsSchema,
+  EditKeySchema,
+  EditKeyResponseSchema,
+  RevealKeyResponseSchema,
+  KeyAuditActionSchema,
 } from './schemas/key-pool.schema';
 import {
   OrderStatusSchema,
@@ -101,6 +108,13 @@ registry.register('KeyMetadata', KeyMetadataSchema);
 registry.register('GetKeyPoolResponse', GetKeyPoolResponseSchema);
 registry.register('InvalidateKeyResponse', InvalidateKeyResponseSchema);
 registry.register('AvailabilityStatus', AvailabilityStatusSchema);
+registry.register('KeyListItem', KeyListItemSchema);
+registry.register('ListKeysResponse', ListKeysResponseSchema);
+registry.register('KeyPoolStats', KeyPoolStatsSchema);
+registry.register('EditKey', EditKeySchema);
+registry.register('EditKeyResponse', EditKeyResponseSchema);
+registry.register('RevealKeyResponse', RevealKeyResponseSchema);
+registry.register('KeyAuditAction', KeyAuditActionSchema);
 
 // Order schemas
 registry.register('OrderStatus', OrderStatusSchema);

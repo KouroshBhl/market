@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -18,11 +19,21 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { KeyPoolsService } from './key-pools.service';
-import { CreateKeyPoolDto, UploadKeysDto } from './dto';
+import {
+  CreateKeyPoolDto,
+  UploadKeysDto,
+  UploadKeysResponseDto,
+  ListKeysQueryDto,
+  ListKeysResponseDto,
+  EditKeyDto,
+  EditKeyResponseDto,
+  RevealKeyResponseDto,
+  KeyPoolStatsDto,
+} from './dto';
 import type {
   KeyPoolWithCounts,
-  UploadKeysResponse,
   InvalidateKeyResponse,
+  UploadKeysResponse,
 } from '@workspace/contracts';
 
 @ApiTags('Key Pools')
@@ -135,7 +146,10 @@ export class KeyPoolsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Upload keys',
-    description: 'Bulk upload keys to a pool. Keys are encrypted at rest. Duplicates are detected and skipped.',
+    description:
+      'Bulk upload keys to a pool. Accepts either an array of keys or raw text (newline-separated). ' +
+      'Keys are encrypted at rest. Duplicates are detected and silently skipped. ' +
+      'Returns only aggregate counts without revealing which keys were duplicates.',
   })
   @ApiParam({
     name: 'poolId',
@@ -152,6 +166,7 @@ export class KeyPoolsController {
   @ApiResponse({
     status: 200,
     description: 'Upload results with counts of added, duplicates, and invalid keys',
+    type: UploadKeysResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -170,7 +185,211 @@ export class KeyPoolsController {
     @Query('sellerId') sellerId: string,
     @Body() dto: UploadKeysDto,
   ): Promise<UploadKeysResponse> {
-    return this.keyPoolsService.uploadKeys(poolId, sellerId, dto.keys);
+    return this.keyPoolsService.uploadKeys(poolId, sellerId, dto.keys, dto.rawText);
+  }
+
+  @Get(':poolId/keys')
+  @ApiOperation({
+    summary: 'List keys',
+    description:
+      'List keys in a pool with pagination and optional status filter. ' +
+      'Returns masked key codes (last 4 characters visible) for security. ' +
+      'Raw key codes are never exposed in list responses.',
+  })
+  @ApiParam({
+    name: 'poolId',
+    description: 'Key Pool ID (UUID)',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'sellerId',
+    required: true,
+    description: 'Seller ID (UUID) - will be from auth in production',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter by key status',
+    enum: ['AVAILABLE', 'RESERVED', 'DELIVERED', 'INVALID'],
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (1-indexed)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Items per page (max 100)',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of keys with masked codes',
+    type: ListKeysResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Seller does not own the key pool',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Key pool not found',
+  })
+  async listKeys(
+    @Param('poolId') poolId: string,
+    @Query() query: ListKeysQueryDto,
+  ): Promise<ListKeysResponseDto> {
+    return this.keyPoolsService.listKeys(
+      poolId,
+      query.sellerId!,
+      query.status,
+      query.page ?? 1,
+      query.pageSize ?? 50,
+    );
+  }
+
+  @Get(':poolId/stats')
+  @ApiOperation({
+    summary: 'Get key pool statistics',
+    description: 'Get counts of keys by status (available, reserved, delivered, invalid, total).',
+  })
+  @ApiParam({
+    name: 'poolId',
+    description: 'Key Pool ID (UUID)',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'sellerId',
+    required: true,
+    description: 'Seller ID (UUID) - will be from auth in production',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Key pool statistics',
+    type: KeyPoolStatsDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Seller does not own the key pool',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Key pool not found',
+  })
+  async getKeyPoolStats(
+    @Param('poolId') poolId: string,
+    @Query('sellerId') sellerId: string,
+  ): Promise<KeyPoolStatsDto> {
+    return this.keyPoolsService.getKeyPoolStats(poolId, sellerId);
+  }
+
+  @Patch(':poolId/keys/:keyId')
+  @ApiOperation({
+    summary: 'Edit key',
+    description:
+      'Update a key code. Only AVAILABLE keys without an associated order can be edited. ' +
+      'The new code is encrypted and its hash is checked for uniqueness.',
+  })
+  @ApiParam({
+    name: 'poolId',
+    description: 'Key Pool ID (UUID)',
+    type: String,
+  })
+  @ApiParam({
+    name: 'keyId',
+    description: 'Key ID (UUID)',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'sellerId',
+    required: true,
+    description: 'Seller ID (UUID) - will be from auth in production',
+    type: String,
+  })
+  @ApiBody({ type: EditKeyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Key updated successfully',
+    type: EditKeyResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Key cannot be edited (not AVAILABLE or tied to order)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Seller does not own the key pool',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Key pool or key not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'New key code already exists (duplicate)',
+  })
+  async editKey(
+    @Param('poolId') poolId: string,
+    @Param('keyId') keyId: string,
+    @Query('sellerId') sellerId: string,
+    @Body() dto: EditKeyDto,
+  ): Promise<EditKeyResponseDto> {
+    return this.keyPoolsService.editKey(poolId, keyId, sellerId, dto.code);
+  }
+
+  @Post(':poolId/keys/:keyId/reveal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reveal key (seller-only)',
+    description:
+      'Decrypt and return the raw key code. Only AVAILABLE or INVALID keys can be revealed. ' +
+      'DELIVERED keys cannot be revealed as they now belong to the buyer. ' +
+      'RESERVED keys are in-flight and cannot be revealed. ' +
+      'This action is logged for audit purposes.',
+  })
+  @ApiParam({
+    name: 'poolId',
+    description: 'Key Pool ID (UUID)',
+    type: String,
+  })
+  @ApiParam({
+    name: 'keyId',
+    description: 'Key ID (UUID)',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'sellerId',
+    required: true,
+    description: 'Seller ID (UUID) - will be from auth in production',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Decrypted key code',
+    type: RevealKeyResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Key cannot be revealed (RESERVED or DELIVERED)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Seller does not own the key pool',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Key pool or key not found',
+  })
+  async revealKey(
+    @Param('poolId') poolId: string,
+    @Param('keyId') keyId: string,
+    @Query('sellerId') sellerId: string,
+  ): Promise<RevealKeyResponseDto> {
+    return this.keyPoolsService.revealKey(poolId, keyId, sellerId);
   }
 
   @Delete(':poolId/keys/:keyId')

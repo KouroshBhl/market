@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { prisma } from '@workspace/db';
 import { CryptoService } from '../crypto/crypto.service';
@@ -13,9 +14,22 @@ import type {
   InvalidateKeyResponse,
   AvailabilityStatus,
 } from '@workspace/contracts';
+import type {
+  ListKeysResponseDto,
+  KeyListItemDto,
+  EditKeyResponseDto,
+  RevealKeyResponseDto,
+  KeyPoolStatsDto,
+} from './dto';
+
+// Constants for key validation
+const MIN_KEY_LENGTH = 1;
+const MAX_KEY_LENGTH = 500;
 
 @Injectable()
 export class KeyPoolsService {
+  private readonly logger = new Logger(KeyPoolsService.name);
+
   constructor(private readonly cryptoService: CryptoService) {}
 
   /**
@@ -105,11 +119,13 @@ export class KeyPoolsService {
 
   /**
    * Upload keys to a pool (bulk)
+   * Supports both array of keys and raw text (newline-separated)
    */
   async uploadKeys(
     poolId: string,
     sellerId: string,
-    keys: string[],
+    keys?: string[],
+    rawText?: string,
   ): Promise<UploadKeysResponse> {
     const keyPool = await prisma.keyPool.findUnique({
       where: { id: poolId },
@@ -127,35 +143,53 @@ export class KeyPoolsService {
       throw new BadRequestException('Key pool is not active');
     }
 
+    // Parse rawText into keys array if provided
+    let keyList: string[] = keys || [];
+    if (rawText) {
+      const parsedKeys = rawText
+        .replace(/\r\n/g, '\n') // Normalize line endings
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      keyList = [...keyList, ...parsedKeys];
+    }
+
+    if (keyList.length === 0) {
+      throw new BadRequestException('No keys provided');
+    }
+
     let added = 0;
     let duplicates = 0;
     let invalid = 0;
 
     // Process keys in batches to avoid memory issues
     const keysToInsert: { poolId: string; codeEncrypted: string; codeHash: string }[] = [];
+    const seenHashes = new Set<string>();
 
-    for (const keyCode of keys) {
-      // Validate key (basic validation)
+    for (const keyCode of keyList) {
+      // Validate key
       const trimmedKey = keyCode.trim();
-      if (!trimmedKey || trimmedKey.length < 1) {
+      if (!trimmedKey || trimmedKey.length < MIN_KEY_LENGTH || trimmedKey.length > MAX_KEY_LENGTH) {
         invalid++;
         continue;
       }
 
       const codeHash = this.cryptoService.hash(trimmedKey);
-      
-      // Check for duplicates (existing in DB)
+
+      // Check for duplicates in current batch
+      if (seenHashes.has(codeHash)) {
+        duplicates++;
+        continue;
+      }
+      seenHashes.add(codeHash);
+
+      // Check for duplicates (existing in DB - global uniqueness)
       const existingKey = await prisma.key.findUnique({
         where: { codeHash },
       });
 
       if (existingKey) {
-        duplicates++;
-        continue;
-      }
-
-      // Check for duplicates in current batch
-      if (keysToInsert.some(k => k.codeHash === codeHash)) {
         duplicates++;
         continue;
       }
@@ -168,13 +202,38 @@ export class KeyPoolsService {
       });
     }
 
-    // Bulk insert keys
+    // Bulk insert keys and create audit logs in a transaction
     if (keysToInsert.length > 0) {
-      await prisma.key.createMany({
-        data: keysToInsert,
-        skipDuplicates: true, // Extra safety
+      await prisma.$transaction(async (tx) => {
+        const result = await tx.key.createMany({
+          data: keysToInsert,
+          skipDuplicates: true,
+        });
+        added = result.count;
+
+        // Get the inserted keys for audit logging
+        const insertedKeys = await tx.key.findMany({
+          where: {
+            poolId,
+            codeHash: { in: keysToInsert.map((k) => k.codeHash) },
+          },
+          select: { id: true },
+        });
+
+        // Create audit logs for uploaded keys
+        if (insertedKeys.length > 0) {
+          await tx.keyAuditLog.createMany({
+            data: insertedKeys.map((key) => ({
+              keyId: key.id,
+              poolId,
+              sellerId,
+              action: 'UPLOAD' as const,
+            })),
+          });
+        }
       });
-      added = keysToInsert.length;
+
+      this.logger.log(`Seller ${sellerId} uploaded ${added} keys to pool ${poolId}`);
     }
 
     // Get updated available count
@@ -191,7 +250,260 @@ export class KeyPoolsService {
   }
 
   /**
+   * List keys in a pool with pagination and filtering
+   * Returns masked codes only (last 4 characters visible)
+   */
+  async listKeys(
+    poolId: string,
+    sellerId: string,
+    status?: string,
+    page: number = 1,
+    pageSize: number = 50,
+  ): Promise<ListKeysResponseDto> {
+    const keyPool = await prisma.keyPool.findUnique({
+      where: { id: poolId },
+    });
+
+    if (!keyPool) {
+      throw new NotFoundException(`Key pool with ID ${poolId} not found`);
+    }
+
+    if (keyPool.sellerId !== sellerId) {
+      throw new ForbiddenException('You do not own this key pool');
+    }
+
+    const where: any = { poolId };
+    if (status) {
+      where.status = status;
+    }
+
+    const [keys, total] = await Promise.all([
+      prisma.key.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          codeEncrypted: true,
+          status: true,
+          createdAt: true,
+          reservedAt: true,
+          deliveredAt: true,
+        },
+      }),
+      prisma.key.count({ where }),
+    ]);
+
+    // Map keys to masked format
+    const keyItems: KeyListItemDto[] = keys.map((key) => ({
+      id: key.id,
+      maskedCode: this.maskCode(this.cryptoService.decrypt(key.codeEncrypted)),
+      status: key.status,
+      createdAt: key.createdAt.toISOString(),
+      reservedAt: key.reservedAt?.toISOString() ?? null,
+      deliveredAt: key.deliveredAt?.toISOString() ?? null,
+    }));
+
+    return {
+      keys: keyItems,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * Get key pool statistics
+   */
+  async getKeyPoolStats(poolId: string, sellerId: string): Promise<KeyPoolStatsDto> {
+    const keyPool = await prisma.keyPool.findUnique({
+      where: { id: poolId },
+    });
+
+    if (!keyPool) {
+      throw new NotFoundException(`Key pool with ID ${poolId} not found`);
+    }
+
+    if (keyPool.sellerId !== sellerId) {
+      throw new ForbiddenException('You do not own this key pool');
+    }
+
+    return this.getKeyCounts(poolId);
+  }
+
+  /**
+   * Edit a key's code (only AVAILABLE keys without orders)
+   */
+  async editKey(
+    poolId: string,
+    keyId: string,
+    sellerId: string,
+    newCode: string,
+  ): Promise<EditKeyResponseDto> {
+    const keyPool = await prisma.keyPool.findUnique({
+      where: { id: poolId },
+    });
+
+    if (!keyPool) {
+      throw new NotFoundException(`Key pool with ID ${poolId} not found`);
+    }
+
+    if (keyPool.sellerId !== sellerId) {
+      throw new ForbiddenException('You do not own this key pool');
+    }
+
+    const key = await prisma.key.findFirst({
+      where: { id: keyId, poolId },
+    });
+
+    if (!key) {
+      throw new NotFoundException(`Key with ID ${keyId} not found in this pool`);
+    }
+
+    // Validate that key can be edited
+    if (key.status !== 'AVAILABLE') {
+      throw new BadRequestException(
+        `Cannot edit key with status ${key.status}. Only AVAILABLE keys can be edited.`,
+      );
+    }
+
+    if (key.orderId) {
+      throw new BadRequestException('Cannot edit key that is tied to an order');
+    }
+
+    // Validate new code
+    const trimmedCode = newCode.trim();
+    if (trimmedCode.length < MIN_KEY_LENGTH || trimmedCode.length > MAX_KEY_LENGTH) {
+      throw new BadRequestException(
+        `Key code must be between ${MIN_KEY_LENGTH} and ${MAX_KEY_LENGTH} characters`,
+      );
+    }
+
+    const newCodeHash = this.cryptoService.hash(trimmedCode);
+
+    // Check for duplicate (if same hash, it's the same key - allow)
+    if (newCodeHash !== key.codeHash) {
+      const existingKey = await prisma.key.findUnique({
+        where: { codeHash: newCodeHash },
+      });
+
+      if (existingKey) {
+        // Don't reveal which key is duplicate
+        throw new ConflictException('This key code already exists');
+      }
+    }
+
+    const newCodeEncrypted = this.cryptoService.encrypt(trimmedCode);
+    const oldCodeHash = key.codeHash;
+
+    // Update key and create audit log in transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.key.update({
+        where: { id: keyId },
+        data: {
+          codeEncrypted: newCodeEncrypted,
+          codeHash: newCodeHash,
+        },
+      });
+
+      await tx.keyAuditLog.create({
+        data: {
+          keyId,
+          poolId,
+          sellerId,
+          action: 'EDIT',
+          metadata: { oldCodeHash }, // Store old hash for audit trail
+        },
+      });
+    });
+
+    this.logger.log(`Seller ${sellerId} edited key ${keyId} in pool ${poolId}`);
+
+    return {
+      success: true,
+      keyId,
+      maskedCode: this.maskCode(trimmedCode),
+    };
+  }
+
+  /**
+   * Reveal a key's raw code (seller-only, AVAILABLE or INVALID keys)
+   * Policy: We allow revealing AVAILABLE and INVALID keys.
+   * DELIVERED keys are not revealed to prevent seller from having access
+   * to keys that have already been sold (buyer owns them now).
+   * RESERVED keys are in-flight and should not be revealed.
+   */
+  async revealKey(
+    poolId: string,
+    keyId: string,
+    sellerId: string,
+  ): Promise<RevealKeyResponseDto> {
+    const keyPool = await prisma.keyPool.findUnique({
+      where: { id: poolId },
+    });
+
+    if (!keyPool) {
+      throw new NotFoundException(`Key pool with ID ${poolId} not found`);
+    }
+
+    if (keyPool.sellerId !== sellerId) {
+      throw new ForbiddenException('You do not own this key pool');
+    }
+
+    const key = await prisma.key.findFirst({
+      where: { id: keyId, poolId },
+    });
+
+    if (!key) {
+      throw new NotFoundException(`Key with ID ${keyId} not found in this pool`);
+    }
+
+    // Only allow revealing AVAILABLE or INVALID keys
+    // DELIVERED: buyer owns the key now, seller should not have access
+    // RESERVED: in-flight, should not be revealed
+    if (key.status !== 'AVAILABLE' && key.status !== 'INVALID') {
+      throw new BadRequestException(
+        `Cannot reveal key with status ${key.status}. Only AVAILABLE or INVALID keys can be revealed.`,
+      );
+    }
+
+    const decryptedCode = this.cryptoService.decrypt(key.codeEncrypted);
+
+    // Create audit log for reveal action
+    await prisma.keyAuditLog.create({
+      data: {
+        keyId,
+        poolId,
+        sellerId,
+        action: 'REVEAL',
+      },
+    });
+
+    this.logger.log(`Seller ${sellerId} revealed key ${keyId} in pool ${poolId}`);
+
+    return {
+      code: decryptedCode,
+      keyId,
+      status: key.status,
+    };
+  }
+
+  /**
+   * Mask a key code, showing only the last 4 characters
+   */
+  private maskCode(code: string): string {
+    if (code.length <= 4) {
+      return '****';
+    }
+    return '****' + code.slice(-4);
+  }
+
+  /**
    * Invalidate a key (soft delete)
+   * Only AVAILABLE keys can be invalidated.
+   * RESERVED and DELIVERED keys cannot be invalidated.
    */
   async invalidateKey(
     poolId: string,
@@ -218,16 +530,43 @@ export class KeyPoolsService {
       throw new NotFoundException(`Key with ID ${keyId} not found in this pool`);
     }
 
-    if (key.status !== 'AVAILABLE') {
+    // Block invalidation for RESERVED or DELIVERED keys
+    if (key.status === 'RESERVED') {
       throw new BadRequestException(
-        `Cannot invalidate key with status ${key.status}. Only AVAILABLE keys can be invalidated.`,
+        'Cannot invalidate key with status RESERVED. The key is pending delivery.',
       );
     }
 
-    const updatedKey = await prisma.key.update({
-      where: { id: keyId },
-      data: { status: 'INVALID' },
+    if (key.status === 'DELIVERED') {
+      throw new BadRequestException(
+        'Cannot invalidate key with status DELIVERED. The key has already been sold.',
+      );
+    }
+
+    if (key.status === 'INVALID') {
+      throw new BadRequestException('Key is already invalidated.');
+    }
+
+    // Update key and create audit log in transaction
+    const updatedKey = await prisma.$transaction(async (tx) => {
+      const updated = await tx.key.update({
+        where: { id: keyId },
+        data: { status: 'INVALID' },
+      });
+
+      await tx.keyAuditLog.create({
+        data: {
+          keyId,
+          poolId,
+          sellerId,
+          action: 'INVALIDATE',
+        },
+      });
+
+      return updated;
     });
+
+    this.logger.log(`Seller ${sellerId} invalidated key ${keyId} in pool ${poolId}`);
 
     return {
       success: true,
