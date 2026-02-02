@@ -41,6 +41,26 @@ import {
   UpdateOfferStatusSchema,
   GetSellerOffersResponseSchema,
 } from './schemas/offer.schema';
+import {
+  KeyStatusSchema,
+  KeyPoolSchema,
+  KeyPoolWithCountsSchema,
+  CreateKeyPoolSchema,
+  UploadKeysSchema,
+  UploadKeysResponseSchema,
+  KeyMetadataSchema,
+  GetKeyPoolResponseSchema,
+  InvalidateKeyResponseSchema,
+  AvailabilityStatusSchema,
+} from './schemas/key-pool.schema';
+import {
+  OrderStatusSchema,
+  OrderSchema,
+  CreateOrderSchema,
+  PayOrderResponseSchema,
+  FulfillOrderResponseSchema,
+  GetOrderResponseSchema,
+} from './schemas/order.schema';
 
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
@@ -69,3 +89,23 @@ registry.register('SaveOfferDraft', SaveOfferDraftSchema);
 registry.register('PublishOffer', PublishOfferSchema);
 registry.register('UpdateOfferStatus', UpdateOfferStatusSchema);
 registry.register('GetSellerOffersResponse', GetSellerOffersResponseSchema);
+
+// Key Pool schemas
+registry.register('KeyStatus', KeyStatusSchema);
+registry.register('KeyPool', KeyPoolSchema);
+registry.register('KeyPoolWithCounts', KeyPoolWithCountsSchema);
+registry.register('CreateKeyPool', CreateKeyPoolSchema);
+registry.register('UploadKeys', UploadKeysSchema);
+registry.register('UploadKeysResponse', UploadKeysResponseSchema);
+registry.register('KeyMetadata', KeyMetadataSchema);
+registry.register('GetKeyPoolResponse', GetKeyPoolResponseSchema);
+registry.register('InvalidateKeyResponse', InvalidateKeyResponseSchema);
+registry.register('AvailabilityStatus', AvailabilityStatusSchema);
+
+// Order schemas
+registry.register('OrderStatus', OrderStatusSchema);
+registry.register('Order', OrderSchema);
+registry.register('CreateOrder', CreateOrderSchema);
+registry.register('PayOrderResponse', PayOrderResponseSchema);
+registry.register('FulfillOrderResponse', FulfillOrderResponseSchema);
+registry.register('GetOrderResponse', GetOrderResponseSchema);

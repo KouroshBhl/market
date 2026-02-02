@@ -12,15 +12,20 @@ import type {
   PublishOffer,
   UpdateOfferStatus,
   GetSellerOffersResponse,
+  AvailabilityStatus,
 } from '@workspace/contracts';
 import { CatalogService } from '../catalog/catalog.service';
+import { KeyPoolsService } from '../key-pools/key-pools.service';
 
 @Injectable()
 export class OffersService {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly keyPoolsService: KeyPoolsService,
+  ) {}
 
   /**
-   * Get all offers for a seller
+   * Get all offers for a seller (with availability info for AUTO_KEY offers)
    */
   async getSellerOffers(sellerId: string): Promise<GetSellerOffersResponse> {
     const offers = await prisma.offer.findMany({
@@ -31,13 +36,29 @@ export class OffersService {
             product: true,
           },
         },
+        keyPool: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return {
-      offers: offers.map(this.mapOfferWithDetailsToContract),
-    };
+    // Enrich offers with availability info
+    const enrichedOffers = await Promise.all(
+      offers.map(async (offer) => {
+        let autoKeyAvailableCount: number | undefined;
+        let availability: AvailabilityStatus | undefined;
+
+        if (offer.deliveryType === 'AUTO_KEY' && offer.keyPool) {
+          const { availableCount, availability: avail } = 
+            await this.keyPoolsService.getOfferAvailability(offer.id);
+          autoKeyAvailableCount = availableCount;
+          availability = avail;
+        }
+
+        return this.mapOfferWithDetailsToContract(offer, autoKeyAvailableCount, availability);
+      }),
+    );
+
+    return { offers: enrichedOffers };
   }
 
   /**
@@ -52,6 +73,7 @@ export class OffersService {
             product: true,
           },
         },
+        keyPool: true,
       },
     });
 
@@ -59,7 +81,18 @@ export class OffersService {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
-    return this.mapOfferWithDetailsToContract(offer);
+    // Get availability for AUTO_KEY offers
+    let autoKeyAvailableCount: number | undefined;
+    let availability: AvailabilityStatus | undefined;
+
+    if (offer.deliveryType === 'AUTO_KEY' && offer.keyPool) {
+      const { availableCount, availability: avail } = 
+        await this.keyPoolsService.getOfferAvailability(offer.id);
+      autoKeyAvailableCount = availableCount;
+      availability = avail;
+    }
+
+    return this.mapOfferWithDetailsToContract(offer, autoKeyAvailableCount, availability);
   }
 
   /**
@@ -92,8 +125,9 @@ export class OffersService {
         currency: data.currency || 'USD',
         stockCount: data.stockCount !== undefined ? data.stockCount : null,
         deliveryInstructions: data.deliveryInstructions || null,
-        keyPoolId: data.keyPoolId || null,
+        // keyPool is created when publishing, not when saving draft
       },
+      include: { keyPool: true },
     });
 
     return this.mapOfferToContract(offer);
@@ -137,8 +171,9 @@ export class OffersService {
         ...(data.deliveryInstructions !== undefined && {
           deliveryInstructions: data.deliveryInstructions,
         }),
-        ...(data.keyPoolId !== undefined && { keyPoolId: data.keyPoolId }),
+        // keyPool is created when publishing, not when updating draft
       },
+      include: { keyPool: true },
     });
 
     return this.mapOfferToContract(offer);
@@ -169,32 +204,52 @@ export class OffersService {
       }
     }
 
-    if (data.deliveryType === 'AUTO_KEY') {
-      // For MVP: accept either keyPoolId or stockCount, but at least one is required
-      if (!data.keyPoolId && !data.stockCount) {
-        throw new BadRequestException(
-          'Either key pool ID or stock count is required for auto-key delivery',
-        );
-      }
-    }
+    // AUTO_KEY specific validation
+    // Publishing decision: Option A - Allow publish even with 0 keys (shows OUT_OF_STOCK)
+    // This is more flexible for sellers who want to set up offers before uploading keys
+    // stockCount is NOT used for AUTO_KEY - availability is derived from key pool
 
-    // Create offer with active status
-    const offer = await prisma.offer.create({
-      data: {
-        sellerId: data.sellerId,
-        variantId: data.variantId,
-        status: 'active',
-        deliveryType: data.deliveryType,
-        priceAmount: data.priceAmount,
-        currency: data.currency,
-        stockCount: data.stockCount !== undefined ? data.stockCount : null,
-        deliveryInstructions: data.deliveryInstructions || null,
-        keyPoolId: data.keyPoolId || null,
-        publishedAt: new Date(),
-      },
+    // Create offer with active status, and key pool if AUTO_KEY
+    const offer = await prisma.$transaction(async (tx) => {
+      // Create the offer
+      const createdOffer = await tx.offer.create({
+        data: {
+          sellerId: data.sellerId,
+          variantId: data.variantId,
+          status: 'active',
+          deliveryType: data.deliveryType,
+          priceAmount: data.priceAmount,
+          currency: data.currency,
+          // stockCount only used for MANUAL delivery
+          stockCount: data.deliveryType === 'MANUAL' && data.stockCount !== undefined 
+            ? data.stockCount 
+            : null,
+          deliveryInstructions: data.deliveryInstructions || null,
+          publishedAt: new Date(),
+        },
+      });
+
+      // Auto-create key pool for AUTO_KEY offers
+      if (data.deliveryType === 'AUTO_KEY') {
+        await tx.keyPool.create({
+          data: {
+            offerId: createdOffer.id,
+            sellerId: data.sellerId,
+            isActive: true,
+          },
+        });
+      }
+
+      return createdOffer;
     });
 
-    return this.mapOfferToContract(offer);
+    // Fetch the offer with keyPool for response
+    const offerWithPool = await prisma.offer.findUnique({
+      where: { id: offer.id },
+      include: { keyPool: true },
+    });
+
+    return this.mapOfferToContract(offerWithPool!);
   }
 
   /**
@@ -285,7 +340,7 @@ export class OffersService {
       currency: offer.currency,
       stockCount: offer.stockCount,
       deliveryInstructions: offer.deliveryInstructions,
-      keyPoolId: offer.keyPoolId,
+      keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
       createdAt: offer.createdAt.toISOString(),
       updatedAt: offer.updatedAt.toISOString(),
@@ -295,7 +350,11 @@ export class OffersService {
   /**
    * Helper: Map Prisma Offer with variant + product to contract
    */
-  private mapOfferWithDetailsToContract(offer: any): OfferWithDetails {
+  private mapOfferWithDetailsToContract(
+    offer: any,
+    autoKeyAvailableCount?: number,
+    availability?: AvailabilityStatus,
+  ): OfferWithDetails {
     return {
       id: offer.id,
       sellerId: offer.sellerId,
@@ -306,10 +365,12 @@ export class OffersService {
       currency: offer.currency,
       stockCount: offer.stockCount,
       deliveryInstructions: offer.deliveryInstructions,
-      keyPoolId: offer.keyPoolId,
+      keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
       createdAt: offer.createdAt.toISOString(),
       updatedAt: offer.updatedAt.toISOString(),
+      autoKeyAvailableCount,
+      availability,
       variant: {
         id: offer.variant.id,
         productId: offer.variant.productId,

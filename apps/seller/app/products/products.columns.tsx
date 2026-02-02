@@ -123,6 +123,40 @@ export const columns: ColumnDef<OfferWithDetails>[] = [
     },
   },
   {
+    id: "stock",
+    header: "Stock",
+    cell: ({ row }) => {
+      const offer = row.original
+      
+      // Only show stock info for AUTO_KEY offers
+      if (offer.deliveryType !== "AUTO_KEY") {
+        return <span className="text-muted-foreground text-xs">N/A</span>
+      }
+      
+      const availableCount = offer.autoKeyAvailableCount ?? 0
+      const availability = offer.availability
+      
+      if (availability === "out_of_stock" || availableCount === 0) {
+        return (
+          <Badge variant="destructive" className="text-xs">
+            Out of Stock
+          </Badge>
+        )
+      }
+      
+      return (
+        <div className="flex items-center gap-2">
+          <Badge variant="success" className="text-xs">
+            In Stock
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            ({availableCount} keys)
+          </span>
+        </div>
+      )
+    },
+  },
+  {
     accessorKey: "priceAmount",
     header: "Price",
     cell: ({ row }) => {
@@ -157,6 +191,7 @@ export const columns: ColumnDef<OfferWithDetails>[] = [
     header: "Actions",
     cell: ({ row }) => {
       const offer = row.original
+      const isAutoKey = offer.deliveryType === "AUTO_KEY"
       
       return (
         <div className="flex gap-2">
@@ -175,6 +210,17 @@ export const columns: ColumnDef<OfferWithDetails>[] = [
           >
             View
           </Button>
+          {isAutoKey && offer.keyPoolId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.location.href = `/products/${offer.id}/keys`
+              }}
+            >
+              Keys
+            </Button>
+          )}
         </div>
       )
     },

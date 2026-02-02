@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DeliveryTypeSchema } from './delivery-type.schema';
 import { CurrencySchema } from './currency.schema';
 import { CatalogVariantWithProductSchema } from './catalog.schema';
+import { AvailabilityStatusSchema } from './key-pool.schema';
 
 // ============================================
 // OFFERS - Seller listings
@@ -19,12 +20,15 @@ export const OfferSchema = z.object({
   deliveryType: DeliveryTypeSchema,
   priceAmount: z.number().int(),
   currency: CurrencySchema,
-  stockCount: z.number().int().nullable(),
+  stockCount: z.number().int().nullable(), // For MANUAL delivery only
   deliveryInstructions: z.string().nullable(),
-  keyPoolId: z.string().uuid().nullable(),
+  keyPoolId: z.string().uuid().nullable(), // FK to KeyPool for AUTO_KEY
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  // Derived fields for AUTO_KEY offers
+  autoKeyAvailableCount: z.number().int().optional(), // Count of available keys
+  availability: AvailabilityStatusSchema.optional(), // in_stock | out_of_stock
 });
 
 export type Offer = z.infer<typeof OfferSchema>;

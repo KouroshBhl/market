@@ -1,10 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable validation pipe for DTO validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Strip properties not in DTO
+      forbidNonWhitelisted: true, // Throw error for unknown properties
+      transform: true, // Auto-transform payloads to DTO instances
+    }),
+  );
 
   const configService = app.get(ConfigService);
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
@@ -27,6 +37,8 @@ async function bootstrap() {
     .addTag('Products', 'Product management endpoints (Legacy)')
     .addTag('Catalog', 'Marketplace catalog endpoints')
     .addTag('Offers', 'Seller offer management endpoints')
+    .addTag('Key Pools', 'Auto-Key pool management (seller-only)')
+    .addTag('Orders', 'Order and fulfillment endpoints')
     .addTag('Health', 'Health check endpoints')
     .addTag('Version', 'Version information endpoints')
     .addServer('http://localhost:4000', 'Development server')

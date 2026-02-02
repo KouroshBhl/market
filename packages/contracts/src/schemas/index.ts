@@ -8,3 +8,5 @@ export * from './delivery-type.schema';
 export * from './product-draft.schema';
 export * from './catalog.schema';
 export * from './offer.schema';
+export * from './key-pool.schema';
+export * from './order.schema';

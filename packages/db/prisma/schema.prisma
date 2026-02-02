@@ -128,14 +128,15 @@ model Offer {
   deliveryType         DeliveryType @map("delivery_type")
   priceAmount          Int          @map("price_amount") // In smallest currency unit (cents)
   currency             Currency
-  stockCount           Int?         @map("stock_count") // Manual tracking or computed from key pool
+  stockCount           Int?         @map("stock_count") // For MANUAL delivery only; AUTO_KEY uses key pool count
   deliveryInstructions String?      @map("delivery_instructions") @db.Text // Required for MANUAL
-  keyPoolId            String?      @map("key_pool_id") // Required for AUTO_KEY (future FK)
   publishedAt          DateTime?    @map("published_at")
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
 
   variant CatalogVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  keyPool KeyPool?       // 1:1 for AUTO_KEY offers
+  orders  Order[]
 
   @@index([sellerId, status])
   @@index([variantId])
@@ -194,4 +195,84 @@ model ProductManualDeliveryConfig {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_manual_delivery_configs")
+}
+
+// ============================================
+// AUTO-KEY DELIVERY SYSTEM
+// ============================================
+
+enum KeyStatus {
+  AVAILABLE
+  RESERVED
+  DELIVERED
+  INVALID
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELED
+}
+
+// Key Pool - Container for keys belonging to an Offer
+// Design decision: KeyPool belongs to Offer (1:1 relationship)
+// This is simpler and ensures sellers cannot accidentally share keys across offers
+model KeyPool {
+  id        String   @id @default(uuid())
+  offerId   String   @unique @map("offer_id")
+  sellerId  String   @map("seller_id") // Denormalized for faster auth checks
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  keys  Key[]
+
+  @@index([sellerId])
+  @@index([offerId, isActive])
+  @@map("key_pools")
+}
+
+// Key - Individual key/code in a pool
+// Security: code is encrypted at rest, codeHash for deduplication without revealing code
+model Key {
+  id            String    @id @default(uuid())
+  poolId        String    @map("pool_id")
+  codeEncrypted String    @map("code_encrypted") @db.Text // AES-256-GCM encrypted
+  codeHash      String    @unique @map("code_hash") // SHA-256 hash for deduplication
+  status        KeyStatus @default(AVAILABLE)
+  reservedAt    DateTime? @map("reserved_at")
+  deliveredAt   DateTime? @map("delivered_at")
+  orderId       String?   @map("order_id") // Ties delivery to specific order
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  pool  KeyPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  order Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([poolId, status]) // Fast lookup of available keys
+  @@index([orderId])
+  @@map("keys")
+}
+
+// Order - MVP minimal for testing fulfillment
+model Order {
+  id           String      @id @default(uuid())
+  buyerId      String      @map("buyer_id") // Future: FK to User
+  offerId      String      @map("offer_id")
+  status       OrderStatus @default(PENDING)
+  priceAmount  Int         @map("price_amount") // Snapshot of offer price at purchase
+  currency     Currency
+  deliveredKey String?     @map("delivered_key") @db.Text // Decrypted key stored on fulfillment (for buyer retrieval)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  keys  Key[] // One key per order for AUTO_KEY delivery
+
+  @@index([buyerId, status])
+  @@index([offerId])
+  @@index([status])
+  @@map("orders")
 }

@@ -9,6 +9,9 @@ import { CategoriesModule } from './categories/categories.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { OffersModule } from './offers/offers.module';
 import { OpenApiModule } from './openapi/openapi.module';
+import { CryptoModule } from './crypto/crypto.module';
+import { KeyPoolsModule } from './key-pools/key-pools.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -17,12 +20,15 @@ import { OpenApiModule } from './openapi/openapi.module';
       load: [configuration],
       validate: validateEnv,
     }),
+    CryptoModule, // Global module for encryption
     HealthModule,
     VersionModule,
     ProductsModule,
     CategoriesModule,
     CatalogModule,
     OffersModule,
+    KeyPoolsModule,
+    OrdersModule,
     OpenApiModule,
   ],
 })
