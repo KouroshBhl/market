@@ -43,6 +43,28 @@
   - REQUIRED: use components from "@workspace/ui" (Button/Input/Select/…)
 - Prefer component variants over classes (e.g., <Badge variant="success" />).
 
+DOCUMENTATION RULE (MANDATORY):
+
+This project uses EXACTLY 5 canonical documentation files:
+
+- ARCHITECTURE.md
+- PRODUCT_DOMAIN.md
+- FRONTEND_SYSTEM.md
+- BACKEND_RULES.md
+- WORKFLOWS.md
+
+DO NOT create new README, docs, or markdown files.
+DO NOT duplicate documentation.
+ALL new decisions, rules, or changes MUST update one or more of these 5 files.
+
+If a change affects documentation:
+
+- Identify the correct file
+- Update it in-place
+- Keep structure consistent
+
+Violation of this rule is considered a failure.
+
 # ---- Accessibility ----
 
 - Interactive elements must be keyboard accessible.
