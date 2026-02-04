@@ -315,6 +315,384 @@ async function main() {
     console.log('  ✓ Platform fee created: 300 bps (3.00%)');
   }
 
+  // ==========================================================================
+  // REQUIREMENT TEMPLATES (Admin-defined buyer requirements for manual offers)
+  // ==========================================================================
+  console.log('\n📋 Creating requirement templates...');
+
+  // Template 1: ACCOUNT_DELIVERY
+  // Use case: Netflix, Spotify, streaming accounts where buyer needs credentials
+  const accountTemplate = await prisma.requirementTemplate.upsert({
+    where: { id: 't0000000-0000-0000-0000-000000000001' },
+    update: {
+      name: 'Account Delivery',
+      description: 'For digital accounts (Netflix, Spotify, etc.) where seller provides credentials',
+      isActive: true,
+    },
+    create: {
+      id: 't0000000-0000-0000-0000-000000000001',
+      name: 'Account Delivery',
+      description: 'For digital accounts (Netflix, Spotify, etc.) where seller provides credentials',
+      isActive: true,
+    },
+  });
+
+  // Fields for Account Delivery template
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000001' },
+    update: {
+      templateId: accountTemplate.id,
+      key: 'buyer_email',
+      label: 'Your Email Address',
+      type: 'EMAIL',
+      required: true,
+      helpText: 'We will send account details to this email',
+      placeholder: 'buyer@example.com',
+      sensitive: true, // Email is sensitive
+      sortOrder: 1,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000001',
+      templateId: accountTemplate.id,
+      key: 'buyer_email',
+      label: 'Your Email Address',
+      type: 'EMAIL',
+      required: true,
+      helpText: 'We will send account details to this email',
+      placeholder: 'buyer@example.com',
+      sensitive: true,
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000002' },
+    update: {
+      templateId: accountTemplate.id,
+      key: 'preferred_password',
+      label: 'Preferred Password (Optional)',
+      type: 'TEXT',
+      required: false,
+      helpText: 'If you want a specific password for the account',
+      placeholder: 'Leave blank for auto-generated',
+      sensitive: true, // Password is sensitive
+      sortOrder: 2,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000002',
+      templateId: accountTemplate.id,
+      key: 'preferred_password',
+      label: 'Preferred Password (Optional)',
+      type: 'TEXT',
+      required: false,
+      helpText: 'If you want a specific password for the account',
+      placeholder: 'Leave blank for auto-generated',
+      sensitive: true,
+      sortOrder: 2,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000003' },
+    update: {
+      templateId: accountTemplate.id,
+      key: 'platform_preference',
+      label: 'Platform/Device',
+      type: 'SELECT',
+      required: true,
+      helpText: 'Primary device you will use',
+      options: ['Web Browser', 'iOS App', 'Android App', 'Smart TV', 'Game Console'],
+      sensitive: false,
+      sortOrder: 3,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000003',
+      templateId: accountTemplate.id,
+      key: 'platform_preference',
+      label: 'Platform/Device',
+      type: 'SELECT',
+      required: true,
+      helpText: 'Primary device you will use',
+      options: ['Web Browser', 'iOS App', 'Android App', 'Smart TV', 'Game Console'],
+      sensitive: false,
+      sortOrder: 3,
+    },
+  });
+
+  console.log('  ✓ Account Delivery (3 fields)');
+
+  // Template 2: IN_GAME_CURRENCY
+  // Use case: WoW gold, V-Bucks, in-game currency delivery
+  const currencyTemplate = await prisma.requirementTemplate.upsert({
+    where: { id: 't0000000-0000-0000-0000-000000000002' },
+    update: {
+      name: 'In-Game Currency Delivery',
+      description: 'For delivering in-game currency (gold, credits, etc.) to player accounts',
+      isActive: true,
+    },
+    create: {
+      id: 't0000000-0000-0000-0000-000000000002',
+      name: 'In-Game Currency Delivery',
+      description: 'For delivering in-game currency (gold, credits, etc.) to player accounts',
+      isActive: true,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000011' },
+    update: {
+      templateId: currencyTemplate.id,
+      key: 'player_tag',
+      label: 'Player Name/Tag',
+      type: 'TEXT',
+      required: true,
+      helpText: 'Your in-game character or player name',
+      placeholder: 'PlayerName#1234',
+      validation: { minLength: 3, maxLength: 50 },
+      sensitive: false,
+      sortOrder: 1,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000011',
+      templateId: currencyTemplate.id,
+      key: 'player_tag',
+      label: 'Player Name/Tag',
+      type: 'TEXT',
+      required: true,
+      helpText: 'Your in-game character or player name',
+      placeholder: 'PlayerName#1234',
+      validation: { minLength: 3, maxLength: 50 },
+      sensitive: false,
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000012' },
+    update: {
+      templateId: currencyTemplate.id,
+      key: 'server_realm',
+      label: 'Server/Realm',
+      type: 'TEXT',
+      required: true,
+      helpText: 'The server or realm where your character exists',
+      placeholder: 'EU-Ragnaros',
+      sensitive: false,
+      sortOrder: 2,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000012',
+      templateId: currencyTemplate.id,
+      key: 'server_realm',
+      label: 'Server/Realm',
+      type: 'TEXT',
+      required: true,
+      helpText: 'The server or realm where your character exists',
+      placeholder: 'EU-Ragnaros',
+      sensitive: false,
+      sortOrder: 2,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000013' },
+    update: {
+      templateId: currencyTemplate.id,
+      key: 'amount_confirmation',
+      label: 'Confirm Amount',
+      type: 'NUMBER',
+      required: true,
+      helpText: 'Re-enter the amount of currency you are purchasing to confirm',
+      validation: { min: 1 },
+      sensitive: false,
+      sortOrder: 3,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000013',
+      templateId: currencyTemplate.id,
+      key: 'amount_confirmation',
+      label: 'Confirm Amount',
+      type: 'NUMBER',
+      required: true,
+      helpText: 'Re-enter the amount of currency you are purchasing to confirm',
+      validation: { min: 1 },
+      sensitive: false,
+      sortOrder: 3,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000014' },
+    update: {
+      templateId: currencyTemplate.id,
+      key: 'delivery_notes',
+      label: 'Additional Notes (Optional)',
+      type: 'TEXTAREA',
+      required: false,
+      helpText: 'Any special instructions or preferences for delivery',
+      placeholder: 'e.g., "I am online between 6-10 PM EST"',
+      validation: { maxLength: 500 },
+      sensitive: false,
+      sortOrder: 4,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000014',
+      templateId: currencyTemplate.id,
+      key: 'delivery_notes',
+      label: 'Additional Notes (Optional)',
+      type: 'TEXTAREA',
+      required: false,
+      helpText: 'Any special instructions or preferences for delivery',
+      placeholder: 'e.g., "I am online between 6-10 PM EST"',
+      validation: { maxLength: 500 },
+      sensitive: false,
+      sortOrder: 4,
+    },
+  });
+
+  console.log('  ✓ In-Game Currency Delivery (4 fields)');
+
+  // Template 3: ITEM_DELIVERY
+  // Use case: WoW items, CS:GO skins, in-game items/equipment
+  const itemTemplate = await prisma.requirementTemplate.upsert({
+    where: { id: 't0000000-0000-0000-0000-000000000003' },
+    update: {
+      name: 'In-Game Item Delivery',
+      description: 'For delivering items, equipment, or skins in online games',
+      isActive: true,
+    },
+    create: {
+      id: 't0000000-0000-0000-0000-000000000003',
+      name: 'In-Game Item Delivery',
+      description: 'For delivering items, equipment, or skins in online games',
+      isActive: true,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000021' },
+    update: {
+      templateId: itemTemplate.id,
+      key: 'character_name',
+      label: 'Character Name',
+      type: 'TEXT',
+      required: true,
+      helpText: 'The character that will receive the item',
+      placeholder: 'MyCharacter',
+      validation: { minLength: 2, maxLength: 30 },
+      sensitive: false,
+      sortOrder: 1,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000021',
+      templateId: itemTemplate.id,
+      key: 'character_name',
+      label: 'Character Name',
+      type: 'TEXT',
+      required: true,
+      helpText: 'The character that will receive the item',
+      placeholder: 'MyCharacter',
+      validation: { minLength: 2, maxLength: 30 },
+      sensitive: false,
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000022' },
+    update: {
+      templateId: itemTemplate.id,
+      key: 'server_name',
+      label: 'Server',
+      type: 'TEXT',
+      required: true,
+      helpText: 'Server where your character is located',
+      placeholder: 'US-Illidan',
+      sensitive: false,
+      sortOrder: 2,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000022',
+      templateId: itemTemplate.id,
+      key: 'server_name',
+      label: 'Server',
+      type: 'TEXT',
+      required: true,
+      helpText: 'Server where your character is located',
+      placeholder: 'US-Illidan',
+      sensitive: false,
+      sortOrder: 2,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000023' },
+    update: {
+      templateId: itemTemplate.id,
+      key: 'trade_method',
+      label: 'Preferred Trade Method',
+      type: 'SELECT',
+      required: true,
+      helpText: 'How you want to receive the item',
+      options: ['In-Game Mail', 'Face-to-Face Trade', 'Auction House'],
+      sensitive: false,
+      sortOrder: 3,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000023',
+      templateId: itemTemplate.id,
+      key: 'trade_method',
+      label: 'Preferred Trade Method',
+      type: 'SELECT',
+      required: true,
+      helpText: 'How you want to receive the item',
+      options: ['In-Game Mail', 'Face-to-Face Trade', 'Auction House'],
+      sensitive: false,
+      sortOrder: 3,
+    },
+  });
+
+  await prisma.requirementField.upsert({
+    where: { id: 'f0000000-0000-0000-0000-000000000024' },
+    update: {
+      templateId: itemTemplate.id,
+      key: 'availability_window',
+      label: 'When are you available? (Optional)',
+      type: 'TEXT',
+      required: false,
+      helpText: 'Time window when you can be online for face-to-face trades',
+      placeholder: 'e.g., "Weekdays 7-11 PM CET"',
+      validation: { maxLength: 100 },
+      sensitive: false,
+      sortOrder: 4,
+    },
+    create: {
+      id: 'f0000000-0000-0000-0000-000000000024',
+      templateId: itemTemplate.id,
+      key: 'availability_window',
+      label: 'When are you available? (Optional)',
+      type: 'TEXT',
+      required: false,
+      helpText: 'Time window when you can be online for face-to-face trades',
+      placeholder: 'e.g., "Weekdays 7-11 PM CET"',
+      validation: { maxLength: 100 },
+      sensitive: false,
+      sortOrder: 4,
+    },
+  });
+
+  console.log('  ✓ In-Game Item Delivery (4 fields)');
+
+  // Link one of the templates to a variant (example: WoW 30-day manual-only variant)
+  // This shows how admin would assign templates to catalog variants
+  await prisma.catalogVariant.update({
+    where: { id: 'v0000000-0000-0000-0000-000000000002' }, // WoW EU 30-day manual-only
+    data: {
+      requirementTemplateId: currencyTemplate.id, // Use currency template for this variant
+    },
+  });
+  console.log('  ✓ Linked "In-Game Currency" template to WoW EU 30-day variant');
+
   // Verify counts
   const parentCount = await prisma.category.count({
     where: { parentId: null },
@@ -324,14 +702,21 @@ async function main() {
   });
   const productCount = await prisma.catalogProduct.count();
   const variantCount = await prisma.catalogVariant.count();
+  const templateCount = await prisma.requirementTemplate.count();
+  const fieldCount = await prisma.requirementField.count();
 
   console.log('\n✅ Seeding complete!');
   console.log(`   • ${parentCount} parent categories`);
   console.log(`   • ${childCount} child categories`);
   console.log(`   • ${productCount} catalog products`);
   console.log(`   • ${variantCount} catalog variants`);
-  console.log(`   • ${parentCount + childCount} total categories`);
-  console.log(`   • Platform fee configured: 3%\n`);
+  console.log(`   • Platform fee configured: 3%`);
+  console.log(`   • ${templateCount} requirement templates`);
+  console.log(`   • ${fieldCount} requirement fields`);
+  console.log('\n📍 View in Prisma Studio:');
+  console.log('   • RequirementTemplate table - see 3 admin-defined templates');
+  console.log('   • RequirementField table - see all fields with validation rules');
+  console.log('   • CatalogVariant table - check requirementTemplateId FK\n');
 }
 
 main()

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CurrencySchema } from './currency.schema';
+import { RequirementsPayloadSchema } from './requirement.schema';
 
 // ============================================
 // ORDER - MVP Order System for Key Fulfillment
@@ -17,6 +18,7 @@ export const OrderSchema = z.object({
   priceAmount: z.number().int(),
   currency: CurrencySchema,
   // deliveredKey is NOT included - only returned in fulfill response
+  // requirementsPayload is NOT included in base schema - only in seller view
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -27,6 +29,7 @@ export type Order = z.infer<typeof OrderSchema>;
 export const CreateOrderSchema = z.object({
   buyerId: z.string().uuid(),
   offerId: z.string().uuid(),
+  requirementsPayload: RequirementsPayloadSchema.optional(), // Buyer-provided data matching template fields
 });
 
 export type CreateOrder = z.infer<typeof CreateOrderSchema>;
@@ -60,3 +63,58 @@ export const GetOrderResponseSchema = z.object({
 });
 
 export type GetOrderResponse = z.infer<typeof GetOrderResponseSchema>;
+
+// ============================================
+// SELLER ORDER VIEW - For manual fulfillment
+// ============================================
+
+// Seller view of order with buyer requirements (for manual fulfillment)
+export const SellerOrderSchema = OrderSchema.extend({
+  // Buyer-provided requirements (sensitive fields masked/decrypted as needed)
+  requirementsPayload: RequirementsPayloadSchema.nullable(),
+});
+
+export type SellerOrder = z.infer<typeof SellerOrderSchema>;
+
+// GET /seller/orders/:id - Seller order details with requirements
+export const GetSellerOrderResponseSchema = z.object({
+  order: SellerOrderSchema,
+  // Offer details for context
+  offer: z.object({
+    id: z.string().uuid(),
+    deliveryType: z.string(),
+    deliveryInstructions: z.string().nullable(),
+    estimatedDeliveryMinutes: z.number().int().nullable(),
+  }),
+  // Template info if requirements were collected
+  requirementTemplate: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    fields: z.array(z.object({
+      key: z.string(),
+      label: z.string(),
+      type: z.string(),
+      sensitive: z.boolean(),
+    })),
+  }).nullable(),
+});
+
+export type GetSellerOrderResponse = z.infer<typeof GetSellerOrderResponseSchema>;
+
+// GET /seller/orders - List seller orders
+export const GetSellerOrdersResponseSchema = z.object({
+  orders: z.array(SellerOrderSchema.extend({
+    offer: z.object({
+      id: z.string().uuid(),
+      deliveryType: z.string(),
+      variant: z.object({
+        sku: z.string(),
+        product: z.object({
+          name: z.string(),
+        }),
+      }),
+    }),
+  })),
+});
+
+export type GetSellerOrdersResponse = z.infer<typeof GetSellerOrdersResponseSchema>;

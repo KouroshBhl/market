@@ -150,6 +150,9 @@ export class OffersService {
         stockCount,
         descriptionMarkdown: data.descriptionMarkdown ?? null,
         deliveryInstructions: data.deliveryInstructions || null,
+        estimatedDeliveryMinutes: data.deliveryType === 'MANUAL' 
+          ? data.estimatedDeliveryMinutes || null 
+          : null,
         // keyPool is created when publishing, not when saving draft
       },
       include: { keyPool: true },
@@ -207,6 +210,11 @@ export class OffersService {
         ...(data.deliveryInstructions !== undefined && {
           deliveryInstructions: data.deliveryInstructions,
         }),
+        ...(data.estimatedDeliveryMinutes !== undefined && {
+          estimatedDeliveryMinutes: finalDeliveryType === 'MANUAL' 
+            ? data.estimatedDeliveryMinutes 
+            : null,
+        }),
         // keyPool is created when publishing, not when updating draft
       },
       include: { keyPool: true },
@@ -238,6 +246,11 @@ export class OffersService {
           'Delivery instructions are required for manual delivery',
         );
       }
+      if (!data.estimatedDeliveryMinutes || data.estimatedDeliveryMinutes <= 0) {
+        throw new BadRequestException(
+          'Estimated delivery time (SLA) is required for manual delivery',
+        );
+      }
     }
 
     // AUTO_KEY specific validation
@@ -262,6 +275,9 @@ export class OffersService {
             : null,
           descriptionMarkdown: data.descriptionMarkdown ?? null,
           deliveryInstructions: data.deliveryInstructions || null,
+          estimatedDeliveryMinutes: data.deliveryType === 'MANUAL' 
+            ? data.estimatedDeliveryMinutes || null 
+            : null,
           publishedAt: new Date(),
         },
       });
@@ -405,6 +421,7 @@ export class OffersService {
       stockCount: offer.deliveryType === 'AUTO_KEY' ? null : offer.stockCount,
       descriptionMarkdown: offer.descriptionMarkdown,
       deliveryInstructions: offer.deliveryInstructions,
+      estimatedDeliveryMinutes: offer.estimatedDeliveryMinutes,
       keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
       createdAt: offer.createdAt.toISOString(),
@@ -442,6 +459,7 @@ export class OffersService {
       stockCount: offer.deliveryType === 'AUTO_KEY' ? null : offer.stockCount,
       descriptionMarkdown: offer.descriptionMarkdown,
       deliveryInstructions: offer.deliveryInstructions,
+      estimatedDeliveryMinutes: offer.estimatedDeliveryMinutes,
       keyPoolId: offer.keyPool?.id || null,
       publishedAt: offer.publishedAt?.toISOString() || null,
       createdAt: offer.createdAt.toISOString(),

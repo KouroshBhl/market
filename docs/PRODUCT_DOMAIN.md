@@ -23,6 +23,32 @@ Buyer sees:       Product page with multiple seller Offers
 
 ---
 
+## Domain Model Principles
+
+### Separation of Concerns
+
+The marketplace follows a strict separation between **WHAT can be sold** (Catalog) and **HOW it is sold** (Offer):
+
+**CatalogProduct / CatalogVariant (Admin-managed)**
+- Defines WHAT products exist in the marketplace
+- Specifies which delivery types are SUPPORTED (capabilities)
+- NO delivery configuration or pricing
+
+**Offer (Seller-created)**
+- References a CatalogVariant
+- Defines the ACTUAL delivery type chosen by the seller
+- Contains ALL delivery configuration (pricing, instructions, SLA, key pool)
+- Delivery config lives ONLY on Offer, never on Product/Catalog
+
+### Why This Separation?
+
+- **Clarity**: Catalog defines capabilities, Offer defines actuals
+- **Flexibility**: Multiple sellers can offer the same variant with different delivery configs
+- **Simplicity**: One place to look for delivery configuration (Offer)
+- **Correctness**: Product/Catalog tables have no delivery-related columns except capability flags
+
+---
+
 ## Data Models
 
 ### Category (2-level hierarchy ONLY)
@@ -73,46 +99,91 @@ model CatalogVariant {
 
 ### Offer (Seller-created)
 
+**Core principle**: ALL delivery configuration lives on the Offer table.
+
 ```prisma
 model Offer {
-  id                   String      @id @default(uuid())
-  sellerId             String
-  variantId            String
-  status               OfferStatus // draft | active | inactive
-  deliveryType         DeliveryType // AUTO_KEY | MANUAL
-  priceAmount          Int         // cents (never Float)
-  currency             Currency
-  stockCount           Int?
-  deliveryInstructions String?     // for MANUAL
-  keyPoolId            String?     // for AUTO_KEY
-  publishedAt          DateTime?
+  id                       String       @id @default(uuid())
+  sellerId                 String
+  variantId                String       // FK to CatalogVariant
+  status                   OfferStatus  // draft | active | inactive
+  deliveryType             DeliveryType // AUTO_KEY | MANUAL (chosen by seller)
+  
+  // Pricing (always required)
+  priceAmount              Int          // cents (never Float)
+  currency                 Currency
+  
+  // AUTO_KEY delivery config (required when deliveryType = AUTO_KEY)
+  keyPoolId                String?      // FK to KeyPool (1:1 relation)
+  
+  // MANUAL delivery config (required when deliveryType = MANUAL)
+  stockCount               Int?         // Manual inventory tracking
+  deliveryInstructions     String?      // How seller fulfills (REQUIRED to publish)
+  estimatedDeliveryMinutes Int?         // SLA shown to buyers (REQUIRED to publish)
+  
+  // Optional seller metadata
+  descriptionMarkdown      String?
+  
+  publishedAt              DateTime?
 }
 ```
 
+**Validation rules**:
+- Variant must have `supportsAutoKey = true` if seller chooses `AUTO_KEY`
+- Variant must have `supportsManual = true` if seller chooses `MANUAL`
+- If MANUAL: `deliveryInstructions` and `estimatedDeliveryMinutes` are REQUIRED to publish
+- If AUTO_KEY: `keyPoolId` is required (auto-created on publish)
+
 ---
 
-## Delivery Types
+## Offer-Level Delivery Configuration
 
-### AUTO_KEY
+**Key principle**: Delivery configuration is **Offer-level**, not Catalog/Product-level. The catalog defines capabilities; the seller's offer defines the actual config.
 
-- Automated key delivery from pool
-- Requires `keyPoolId` on publish (or `stockCount` for MVP)
+### How It Works
+
+1. **Admin** creates `CatalogVariant` with capability flags:
+   - `supportsAutoKey: true/false`
+   - `supportsManual: true/false`
+
+2. **Seller** creates `Offer` and chooses ONE delivery type:
+   - Must choose a type that the variant supports
+   - Delivery config fields are populated on the Offer table based on choice
+
+3. **Validation** enforces required fields at publish time:
+   - AUTO_KEY requires `keyPoolId` (or auto-created)
+   - MANUAL requires `deliveryInstructions` + `estimatedDeliveryMinutes`
+
+### AUTO_KEY Configuration (Offer-level)
+
+When seller chooses `deliveryType = AUTO_KEY`:
+
+- **keyPoolId** (required): FK to KeyPool containing encrypted keys
+- KeyPool is 1:1 with Offer (auto-created on publish)
 - Keys encrypted at rest (AES-256-GCM)
-- Atomic fulfillment with row-level locking
+- Fulfillment is atomic with row-level locking
+- Availability computed from key pool status
 
-### MANUAL
+### MANUAL Configuration (Offer-level)
 
-- Seller fulfills manually
-- Requires `deliveryInstructions` on publish
-- Optional estimated SLA
+When seller chooses `deliveryType = MANUAL`:
 
-### Variant Capabilities
+**Required fields** (enforced at publish):
+- **deliveryInstructions** (String): How the seller will fulfill orders
+- **estimatedDeliveryMinutes** (Int): SLA shown to buyers
+  - Preset choices in wizard: 15m, 1h, 6h, 24h, 3d, or custom
 
-Each variant defines which delivery types it supports:
+**Optional fields**:
+- **stockCount** (Int): Manual inventory tracking
+- Buyer requirements collected via admin-defined templates (see Buyer Requirements System)
 
-- `supportsAutoKey: true/false`
-- `supportsManual: true/false`
-- If variant only supports one type, auto-select it in wizard
+### Variant Capability Flags
+
+These flags on `CatalogVariant` define what's POSSIBLE, not what's CONFIGURED:
+
+- `supportsAutoKey: true/false` - Can this variant be sold with automated keys?
+- `supportsManual: true/false` - Can this variant be sold with manual fulfillment?
+- If variant only supports one type, wizard auto-selects it
 - Validation: Reject offer if variant doesn't support chosen delivery type
 
 ---
@@ -242,7 +313,7 @@ FOR UPDATE SKIP LOCKED
 ### Publishing (Strict)
 
 - Required: `variantId`, `priceAmount > 0`, `currency`
-- If MANUAL: `deliveryInstructions` required
+- If MANUAL: `deliveryInstructions` **required**, `estimatedDeliveryMinutes` **required**
 - If AUTO_KEY: `keyPoolId` or `stockCount` required
 - Variant must support chosen delivery type
 
@@ -251,6 +322,90 @@ FOR UPDATE SKIP LOCKED
 - MUST be child category (has parentId)
 - MUST be active
 - Validated at both API and DB levels
+
+---
+
+## Buyer Requirements System
+
+### Overview
+
+For manual fulfillment, sellers often need buyer information (account credentials, character names, etc.). This is handled via **admin-defined requirement templates**, not seller-defined fields.
+
+**Key design decisions**:
+
+- Templates are **admin-managed** (catalog-level), not seller-defined
+- Templates are linked to **CatalogVariant** (granular per-variant requirements)
+- Sellers can only add free-text instructions, NOT create custom fields
+- Sensitive data (passwords, credentials) is **encrypted at rest**
+- Only the seller owning the order can view buyer requirements
+
+### Data Models
+
+```prisma
+// Admin-managed template
+model RequirementTemplate {
+  id          String   @id
+  name        String   // e.g., "Netflix Account Delivery"
+  description String?
+  isActive    Boolean  @default(true)
+}
+
+// Individual fields within a template
+model RequirementField {
+  id          String   @id
+  templateId  String
+  key         String   // programmatic key: "email", "password"
+  label       String   // UI label: "Netflix Email"
+  type        RequirementFieldType // TEXT, EMAIL, NUMBER, SELECT, TEXTAREA, ACCOUNT_CREDENTIALS
+  required    Boolean  @default(true)
+  helpText    String?
+  placeholder String?
+  options     Json?    // For SELECT type
+  validation  Json?    // { minLength, maxLength, pattern }
+  sensitive   Boolean  @default(false) // If true, encrypted at rest
+  sortOrder   Int
+}
+
+// Link template to variant
+model CatalogVariant {
+  // ... existing fields ...
+  requirementTemplateId String? // Admin-assigned buyer requirements template
+}
+
+// Store buyer data on order
+model Order {
+  // ... existing fields ...
+  requirementsPayload          Json?   // Non-sensitive buyer data
+  requirementsPayloadEncrypted String? // Encrypted sensitive data (AES-256-GCM)
+}
+```
+
+### Field Types
+
+| Type | Description |
+|------|-------------|
+| TEXT | Single-line text input |
+| EMAIL | Email address (validated format) |
+| NUMBER | Numeric input |
+| SELECT | Dropdown with predefined options |
+| TEXTAREA | Multi-line text |
+| ACCOUNT_CREDENTIALS | Special type for username/password pairs (always sensitive) |
+
+### Security
+
+- **Sensitive fields** are encrypted at rest using AES-256-GCM
+- **Access control**: Only the seller owning the order can view buyer requirements
+- **Logging**: Sensitive data is never logged
+- **API responses**: Buyer view never includes requirements; seller view decrypts on demand
+
+### Checkout Flow
+
+1. Buyer selects variant → API returns requirements template fields
+2. Frontend renders dynamic form based on template
+3. Buyer submits order with `requirementsPayload`
+4. Backend validates payload against template
+5. Sensitive fields are encrypted before storage
+6. Seller views order → sensitive fields decrypted for display
 
 ---
 
@@ -391,10 +546,33 @@ Preview fetches current platform fee via `GET /settings/platform-fee` and comput
 
 | Method | Path                  | Description               |
 | ------ | --------------------- | ------------------------- |
-| POST   | `/orders`             | Create order              |
+| POST   | `/orders`             | Create order (with requirementsPayload) |
 | POST   | `/orders/:id/pay`     | Pay (MVP stub)            |
 | POST   | `/orders/:id/fulfill` | Atomic key delivery       |
 | GET    | `/orders/:id`         | Order with delivered keys |
+
+### Orders (Seller)
+
+| Method | Path                  | Description               |
+| ------ | --------------------- | ------------------------- |
+| GET    | `/orders/seller`      | List seller's orders      |
+| GET    | `/orders/seller/:id`  | Order details with buyer requirements |
+
+### Buyer Requirements (Public)
+
+| Method | Path                                    | Description               |
+| ------ | --------------------------------------- | ------------------------- |
+| GET    | `/catalog/variants/:id/requirements`    | Get requirements for checkout |
+
+### Buyer Requirements (Admin)
+
+| Method | Path                              | Description               |
+| ------ | --------------------------------- | ------------------------- |
+| GET    | `/admin/requirement-templates`    | List all templates        |
+| GET    | `/admin/requirement-templates/:id`| Get template details      |
+| POST   | `/admin/requirement-templates`    | Create template           |
+| PATCH  | `/admin/requirement-templates/:id`| Update template           |
+| DELETE | `/admin/requirement-templates/:id`| Delete template           |
 
 ### Platform Settings
 

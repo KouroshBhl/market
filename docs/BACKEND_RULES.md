@@ -151,11 +151,11 @@ id String @id @default(uuid())
 ### Column Mapping
 
 ```prisma
-model Product {
+model Offer {
   sellerId  String   @map("seller_id")
   createdAt DateTime @map("created_at")
 
-  @@map("products")
+  @@map("offers")
 }
 ```
 
@@ -177,24 +177,24 @@ await prisma.$transaction(async (tx) => {
 
 ```typescript
 @Injectable()
-export class ProductsService {
-  constructor(private readonly categoriesService: CategoriesService) {}
+export class OffersService {
+  constructor(private readonly catalogService: CatalogService) {}
 
   // Public methods
-  async findAll(): Promise<Product[]> {}
-  async findOne(id: string): Promise<Product> {}
-  async create(data: CreateDto): Promise<Product> {}
+  async findAll(): Promise<Offer[]> {}
+  async findOne(id: string): Promise<Offer> {}
+  async create(data: CreateDto): Promise<Offer> {}
 
   // Private helpers
-  private mapToContract(product: PrismaProduct): Product {}
-  private validateDeliveryConfig(data: any): void {}
+  private mapToContract(offer: PrismaOffer): Offer {}
+  private validateDeliveryCapability(variantId: string, deliveryType: string): void {}
 }
 ```
 
 ### Validation Placement
 
 - **Input validation**: In controller (Zod parse)
-- **Business validation**: In service (category is child, delivery config matches type)
+- **Business validation**: In service (variant supports delivery type, required fields for delivery config)
 - **Database constraints**: In Prisma schema (unique, foreign keys)
 
 ---
@@ -204,16 +204,16 @@ export class ProductsService {
 ### Swagger Documentation Required
 
 ```typescript
-@ApiTags('Products')
-@Controller('products')
-export class ProductsController {
+@ApiTags('Offers')
+@Controller('offers')
+export class OffersController {
   @Get()
-  @ApiOperation({ summary: 'Get all products' })
+  @ApiOperation({ summary: 'Get all offers' })
   @ApiResponse({ status: 200, description: 'Success' })
   findAll() { }
 
   @Post()
-  @ApiOperation({ summary: 'Create product' })
+  @ApiOperation({ summary: 'Create offer' })
   @ApiBody({ schema: { ... } })
   @ApiResponse({ status: 201, description: 'Created' })
   @ApiResponse({ status: 400, description: 'Validation error' })
@@ -232,12 +232,12 @@ export class ProductsController {
 
 ```typescript
 @Get(':id')
-@ApiParam({ name: 'id', description: 'Product ID' })
+@ApiParam({ name: 'id', description: 'Offer ID' })
 findOne(@Param('id') id: string) { }
 
 @Get()
-@ApiQuery({ name: 'categoryId', required: false })
-findAll(@Query('categoryId') categoryId?: string) { }
+@ApiQuery({ name: 'sellerId', required: false })
+findAll(@Query('sellerId') sellerId?: string) { }
 ```
 
 ---
@@ -319,7 +319,7 @@ SELECT ... FOR UPDATE SKIP LOCKED
 
 ```typescript
 // Not found
-throw new NotFoundException(`Product ${id} not found`);
+throw new NotFoundException(`Offer ${id} not found`);
 
 // Validation
 throw new BadRequestException('Invalid category. Must be child category.');
@@ -384,12 +384,12 @@ src/
 
 ```typescript
 @Module({
-  imports: [CategoriesModule],
-  controllers: [ProductsController],
-  providers: [ProductsService],
-  exports: [ProductsService],
+  imports: [CatalogModule],
+  controllers: [OffersController],
+  providers: [OffersService],
+  exports: [OffersService],
 })
-export class ProductsModule {}
+export class OffersModule {}
 ```
 
 ---

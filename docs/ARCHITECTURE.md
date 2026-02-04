@@ -137,11 +137,11 @@ export const myContract = {
 ### Required Decorators
 
 ```typescript
-@ApiTags('Products')
-@Controller('products')
-export class ProductsController {
+@ApiTags('Offers')
+@Controller('offers')
+export class OffersController {
   @Get()
-  @ApiOperation({ summary: 'Get all products' })
+  @ApiOperation({ summary: 'Get all offers' })
   @ApiResponse({ status: 200, description: 'Success' })
   findAll() { ... }
 }

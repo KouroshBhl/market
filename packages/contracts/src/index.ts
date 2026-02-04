@@ -11,19 +11,7 @@ import { HealthResponseSchema } from './schemas/health.schema';
 import { VersionResponseSchema } from './schemas/version.schema';
 import { UserSchema } from './schemas/user.schema';
 import { CurrencySchema } from './schemas/currency.schema';
-import { 
-  ProductSchema, 
-  ProductStatusSchema,
-  AutoKeyConfigSchema,
-  ManualDeliveryConfigSchema 
-} from './schemas/product.schema';
 import { DeliveryTypeSchema } from './schemas/delivery-type.schema';
-import { 
-  ProductDraftSchema, 
-  SaveProductDraftSchema,
-  UpdateProductDraftSchema,
-  UpdateProductStatusSchema 
-} from './schemas/product-draft.schema';
 import {
   CatalogProductSchema,
   CatalogVariantSchema,
@@ -68,22 +56,31 @@ import {
   PayOrderResponseSchema,
   FulfillOrderResponseSchema,
   GetOrderResponseSchema,
+  SellerOrderSchema,
+  GetSellerOrderResponseSchema,
+  GetSellerOrdersResponseSchema,
 } from './schemas/order.schema';
+
+import {
+  RequirementFieldTypeSchema,
+  FieldValidationSchema,
+  RequirementFieldSchema,
+  RequirementTemplateSchema,
+  RequirementTemplateWithFieldsSchema,
+  GetVariantRequirementsResponseSchema,
+  CreateRequirementTemplateSchema,
+  UpdateRequirementTemplateSchema,
+  RequirementTemplateAdminResponseSchema,
+  GetRequirementTemplatesResponseSchema,
+  RequirementsPayloadSchema,
+} from './schemas/requirement.schema';
 
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
 registry.register('VersionResponse', VersionResponseSchema);
 registry.register('User', UserSchema);
 registry.register('Currency', CurrencySchema);
-registry.register('Product', ProductSchema);
-registry.register('ProductStatus', ProductStatusSchema);
 registry.register('DeliveryType', DeliveryTypeSchema);
-registry.register('ProductDraft', ProductDraftSchema);
-registry.register('SaveProductDraft', SaveProductDraftSchema);
-registry.register('UpdateProductDraft', UpdateProductDraftSchema);
-registry.register('UpdateProductStatus', UpdateProductStatusSchema);
-registry.register('AutoKeyConfig', AutoKeyConfigSchema);
-registry.register('ManualDeliveryConfig', ManualDeliveryConfigSchema);
 registry.register('Region', RegionSchema);
 registry.register('CatalogProduct', CatalogProductSchema);
 registry.register('CatalogVariant', CatalogVariantSchema);
@@ -125,3 +122,19 @@ registry.register('CreateOrder', CreateOrderSchema);
 registry.register('PayOrderResponse', PayOrderResponseSchema);
 registry.register('FulfillOrderResponse', FulfillOrderResponseSchema);
 registry.register('GetOrderResponse', GetOrderResponseSchema);
+registry.register('SellerOrder', SellerOrderSchema);
+registry.register('GetSellerOrderResponse', GetSellerOrderResponseSchema);
+registry.register('GetSellerOrdersResponse', GetSellerOrdersResponseSchema);
+
+// Requirement schemas
+registry.register('RequirementFieldType', RequirementFieldTypeSchema);
+registry.register('FieldValidation', FieldValidationSchema);
+registry.register('RequirementField', RequirementFieldSchema);
+registry.register('RequirementTemplate', RequirementTemplateSchema);
+registry.register('RequirementTemplateWithFields', RequirementTemplateWithFieldsSchema);
+registry.register('GetVariantRequirementsResponse', GetVariantRequirementsResponseSchema);
+registry.register('CreateRequirementTemplate', CreateRequirementTemplateSchema);
+registry.register('UpdateRequirementTemplate', UpdateRequirementTemplateSchema);
+registry.register('RequirementTemplateAdminResponse', RequirementTemplateAdminResponseSchema);
+registry.register('GetRequirementTemplatesResponse', GetRequirementTemplatesResponseSchema);
+registry.register('RequirementsPayload', RequirementsPayloadSchema);

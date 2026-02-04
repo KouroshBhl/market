@@ -22,7 +22,8 @@ export const OfferSchema = z.object({
   currency: CurrencySchema,
   stockCount: z.number().int().nullable(), // For MANUAL delivery only
   descriptionMarkdown: z.string().nullable(),
-  deliveryInstructions: z.string().nullable(),
+  deliveryInstructions: z.string().nullable(), // Required for MANUAL delivery to publish
+  estimatedDeliveryMinutes: z.number().int().nullable(), // SLA for MANUAL delivery (required to publish)
   keyPoolId: z.string().uuid().nullable(), // FK to KeyPool for AUTO_KEY
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
@@ -54,6 +55,7 @@ export const SaveOfferDraftSchema = z.object({
   stockCount: z.number().int().nullable().optional(),
   descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
   deliveryInstructions: z.string().nullable().optional(),
+  estimatedDeliveryMinutes: z.number().int().positive().nullable().optional(), // SLA for MANUAL delivery
   keyPoolId: z.string().uuid().nullable().optional(),
 });
 
@@ -68,7 +70,8 @@ export const PublishOfferSchema = z.object({
   currency: CurrencySchema,
   stockCount: z.number().int().nullable().optional(),
   descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
-  deliveryInstructions: z.string().nullable().optional(),
+  deliveryInstructions: z.string().nullable().optional(), // Required for MANUAL (validated in service)
+  estimatedDeliveryMinutes: z.number().int().positive().nullable().optional(), // Required for MANUAL (validated in service)
   keyPoolId: z.string().uuid().nullable().optional(),
 });
 

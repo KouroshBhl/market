@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsUUID, IsOptional, IsObject } from 'class-validator';
 
 export class CreateOrderDto {
   @ApiProperty({
@@ -15,4 +15,12 @@ export class CreateOrderDto {
   })
   @IsUUID()
   offerId: string;
+
+  @ApiPropertyOptional({
+    description: 'Buyer-provided requirements data (keys match template field keys)',
+    example: { email: 'user@example.com', username: 'myusername' },
+  })
+  @IsOptional()
+  @IsObject()
+  requirementsPayload?: Record<string, unknown>;
 }

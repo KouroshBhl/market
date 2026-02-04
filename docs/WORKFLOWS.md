@@ -203,6 +203,56 @@ curl -X POST http://localhost:4000/offers/draft \
     "sellerId": "00000000-0000-0000-0000-000000000001",
     "deliveryType": "MANUAL"
   }'
+
+# Publish MANUAL offer (requires deliveryInstructions + estimatedDeliveryMinutes)
+curl -X POST http://localhost:4000/offers/publish \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sellerId": "00000000-0000-0000-0000-000000000001",
+    "variantId": "<variant-uuid>",
+    "deliveryType": "MANUAL",
+    "priceAmount": 1999,
+    "currency": "USD",
+    "deliveryInstructions": "I will send account credentials via chat within the SLA",
+    "estimatedDeliveryMinutes": 60
+  }'
+# Note: Publishing MANUAL without deliveryInstructions or estimatedDeliveryMinutes returns 400
+
+# Get requirements for variant (checkout flow)
+curl http://localhost:4000/catalog/variants/<variant-uuid>/requirements
+# Expected: {"hasRequirements":true,"template":{"id":"...","name":"...","fields":[...]}} or {"hasRequirements":false,"template":null}
+
+# Create order with buyer requirements
+curl -X POST http://localhost:4000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "buyerId": "00000000-0000-0000-0000-000000000002",
+    "offerId": "<offer-uuid>",
+    "requirementsPayload": {
+      "email": "buyer@example.com",
+      "password": "secretpassword"
+    }
+  }'
+# Note: Sensitive fields are encrypted at rest
+
+# Get seller order view (includes decrypted requirements)
+curl "http://localhost:4000/orders/seller/<order-uuid>?sellerId=00000000-0000-0000-0000-000000000001"
+# Returns order with buyer-provided requirements for manual fulfillment
+
+# Admin: Create requirement template
+curl -X POST http://localhost:4000/admin/requirement-templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Netflix Account Delivery",
+    "description": "Requirements for Netflix account orders",
+    "fields": [
+      {"key": "email", "label": "Netflix Email", "type": "EMAIL", "required": true},
+      {"key": "password", "label": "Account Password", "type": "TEXT", "required": true, "sensitive": true}
+    ]
+  }'
+
+# Admin: List all requirement templates
+curl http://localhost:4000/admin/requirement-templates
 ```
 
 ### Swagger UI Testing
@@ -436,6 +486,31 @@ pnpm --filter api build
 - [ ] Label shows "Price (USD) *" or selected currency
 - [ ] Enter or modify price
 - [ ] Preview card shows calculated buyer price with platform fee
+
+### Manual Offer Publishing
+
+- [ ] Navigate to "New Offer" wizard
+- [ ] Select MANUAL delivery type
+- [ ] Proceed to "Pricing & Delivery" step
+- [ ] Verify label shows "Delivery Instructions * (required)" (NOT optional)
+- [ ] Verify SLA presets appear: 15m, 1h, 6h, 24h, 3d, Custom
+- [ ] Try to proceed without delivery instructions → blocked
+- [ ] Try to proceed without selecting SLA → blocked
+- [ ] Enter delivery instructions + select SLA → can proceed
+- [ ] On Review step, verify both values are shown
+- [ ] Publish succeeds with both required fields
+
+### Buyer Requirements (Checkout)
+
+- [ ] Variant has requirement template assigned (via admin)
+- [ ] `GET /catalog/variants/:id/requirements` returns template with fields
+- [ ] Checkout form renders dynamic fields based on template
+- [ ] Required fields are enforced
+- [ ] Email fields validate format
+- [ ] `POST /orders` with requirementsPayload succeeds
+- [ ] Sensitive fields (password, etc.) are encrypted in DB
+- [ ] `GET /orders/seller/:id` returns decrypted requirements for seller
+- [ ] Non-owner seller cannot view order → 403 Forbidden
 
 **In Seller Dashboard Table:**
 - [ ] View offers list

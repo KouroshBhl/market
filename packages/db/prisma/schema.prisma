@@ -61,7 +61,6 @@ model Category {
   // Self-reference for parent-child relationship
   parent   Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children Category[]       @relation("CategoryHierarchy")
-  products Product[]        // Legacy - keep for backward compatibility
   catalogProducts CatalogProduct[]
 
   // Constraints
@@ -97,43 +96,47 @@ model CatalogProduct {
 
 // Variants: region/duration/edition combinations
 model CatalogVariant {
-  id               String   @id @default(uuid())
-  productId        String   @map("product_id")
-  region           Region
-  durationDays     Int?     @map("duration_days")
-  edition          String?  // e.g., "Standard", "Deluxe", etc.
-  sku              String   @unique
-  supportsAutoKey  Boolean  @default(false) @map("supports_auto_key") // Can be delivered via automated key
-  supportsManual   Boolean  @default(true) @map("supports_manual")    // Can be delivered manually
-  isActive         Boolean  @default(true) @map("is_active")
-  sortOrder        Int      @default(0) @map("sort_order")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid())
+  productId             String   @map("product_id")
+  region                Region
+  durationDays          Int?     @map("duration_days")
+  edition               String?  // e.g., "Standard", "Deluxe", etc.
+  sku                   String   @unique
+  supportsAutoKey       Boolean  @default(false) @map("supports_auto_key") // Can be delivered via automated key
+  supportsManual        Boolean  @default(true) @map("supports_manual")    // Can be delivered manually
+  requirementTemplateId String?  @map("requirement_template_id") // Admin-assigned buyer requirements template
+  isActive              Boolean  @default(true) @map("is_active")
+  sortOrder             Int      @default(0) @map("sort_order")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  product CatalogProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  offers  Offer[]
+  product             CatalogProduct       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  offers              Offer[]
+  requirementTemplate RequirementTemplate? @relation("VariantRequirements", fields: [requirementTemplateId], references: [id], onDelete: SetNull)
 
   @@unique([productId, region, durationDays, edition])
   @@index([productId, isActive])
   @@index([isActive])
+  @@index([requirementTemplateId])
   @@map("catalog_variants")
 }
 
 // Seller listings for catalog variants
 model Offer {
-  id                   String       @id @default(uuid())
-  sellerId             String       @map("seller_id") // Future: FK to User
-  variantId            String       @map("variant_id")
-  status               OfferStatus  @default(draft)
-  deliveryType         DeliveryType @map("delivery_type")
-  priceAmount          Int          @map("price_amount") // In smallest currency unit (cents)
-  currency             Currency
-  stockCount           Int?         @map("stock_count") // For MANUAL delivery only; AUTO_KEY uses key pool count
-  descriptionMarkdown  String?      @map("description_markdown") @db.Text // Seller-rich description (bold, lists, emojis)
-  deliveryInstructions String?      @map("delivery_instructions") @db.Text // Required for MANUAL
-  publishedAt          DateTime?    @map("published_at")
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @updatedAt @map("updated_at")
+  id                       String       @id @default(uuid())
+  sellerId                 String       @map("seller_id") // Future: FK to User
+  variantId                String       @map("variant_id")
+  status                   OfferStatus  @default(draft)
+  deliveryType             DeliveryType @map("delivery_type")
+  priceAmount              Int          @map("price_amount") // In smallest currency unit (cents)
+  currency                 Currency
+  stockCount               Int?         @map("stock_count") // For MANUAL delivery only; AUTO_KEY uses key pool count
+  descriptionMarkdown      String?      @map("description_markdown") @db.Text // Seller-rich description (bold, lists, emojis)
+  deliveryInstructions     String?      @map("delivery_instructions") @db.Text // Required for MANUAL to publish
+  estimatedDeliveryMinutes Int?         @map("estimated_delivery_minutes") // SLA for MANUAL delivery (required to publish)
+  publishedAt              DateTime?    @map("published_at")
+  createdAt                DateTime     @default(now()) @map("created_at")
+  updatedAt                DateTime     @updatedAt @map("updated_at")
 
   variant CatalogVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   keyPool KeyPool?       // 1:1 for AUTO_KEY offers
@@ -146,57 +149,10 @@ model Offer {
   @@map("offers")
 }
 
-// Legacy Product model - keep for backward compatibility during migration
-model Product {
-  id              String        @id @default(uuid())
-  sellerId        String        @map("seller_id")
-  status          ProductStatus @default(draft)
-  deliveryType    DeliveryType  @map("delivery_type")
-  categoryId      String?       @map("category_id")
-  title           String?
-  description     String?
-  priceAmount     Int?          @map("price_amount")
-  currency        Currency?
-  publishedAt     DateTime?     @map("published_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  category            Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  autoKeyConfig       ProductAutoKeyConfig?
-  manualDeliveryConfig ProductManualDeliveryConfig?
-
-  @@index([sellerId, status])
-  @@index([categoryId])
-  @@index([status, publishedAt])
-  @@map("products")
-}
-
-model ProductAutoKeyConfig {
-  id              String   @id @default(uuid())
-  productId       String   @unique @map("product_id")
-  keyPoolId       String?  @map("key_pool_id")
-  autoDelivery    Boolean  @default(true) @map("auto_delivery")
-  stockAlert      Int?     @map("stock_alert")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@map("product_auto_key_configs")
-}
-
-model ProductManualDeliveryConfig {
-  id                  String   @id @default(uuid())
-  productId           String   @unique @map("product_id")
-  deliveryInstructions String?  @map("delivery_instructions") @db.Text
-  estimatedDeliverySLA Int?     @map("estimated_delivery_sla")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@map("product_manual_delivery_configs")
-}
+// Legacy Product model removed - use Offer model instead
+// All delivery configuration lives on the Offer model
+// CatalogVariant defines which delivery types are SUPPORTED
+// Offer defines the ACTUAL delivery type and configuration chosen by the seller
 
 // ============================================
 // AUTO-KEY DELIVERY SYSTEM
@@ -290,15 +246,17 @@ model KeyAuditLog {
 
 // Order - MVP minimal for testing fulfillment
 model Order {
-  id           String      @id @default(uuid())
-  buyerId      String      @map("buyer_id") // Future: FK to User
-  offerId      String      @map("offer_id")
-  status       OrderStatus @default(PENDING)
-  priceAmount  Int         @map("price_amount") // Snapshot of offer price at purchase
-  currency     Currency
-  deliveredKey String?     @map("delivered_key") @db.Text // Decrypted key stored on fulfillment (for buyer retrieval)
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id                            String      @id @default(uuid())
+  buyerId                       String      @map("buyer_id") // Future: FK to User
+  offerId                       String      @map("offer_id")
+  status                        OrderStatus @default(PENDING)
+  priceAmount                   Int         @map("price_amount") // Snapshot of offer price at purchase
+  currency                      Currency
+  deliveredKey                  String?     @map("delivered_key") @db.Text // Decrypted key stored on fulfillment (for buyer retrieval)
+  requirementsPayload           Json?       @map("requirements_payload") // Buyer-provided data matching template fields (non-sensitive)
+  requirementsPayloadEncrypted  String?     @map("requirements_payload_encrypted") @db.Text // Encrypted sensitive buyer data (account credentials, etc.)
+  createdAt                     DateTime    @default(now()) @map("created_at")
+  updatedAt                     DateTime    @updatedAt @map("updated_at")
 
   offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
   keys  Key[] // One key per order for AUTO_KEY delivery
@@ -307,6 +265,58 @@ model Order {
   @@index([offerId])
   @@index([status])
   @@map("orders")
+}
+
+// ============================================
+// BUYER REQUIREMENTS SYSTEM
+// ============================================
+
+enum RequirementFieldType {
+  TEXT
+  EMAIL
+  NUMBER
+  SELECT
+  TEXTAREA
+  ACCOUNT_CREDENTIALS // Special type for username/password pairs (always sensitive)
+}
+
+// Admin-managed templates for buyer requirements (e.g., "Account info for Netflix", "Character name for WoW")
+model RequirementTemplate {
+  id          String   @id @default(uuid())
+  name        String   // e.g., "Netflix Account Delivery", "WoW Character Boost"
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  fields   RequirementField[]
+  variants CatalogVariant[]   @relation("VariantRequirements")
+
+  @@map("requirement_templates")
+}
+
+// Individual fields within a requirement template
+model RequirementField {
+  id          String               @id @default(uuid())
+  templateId  String               @map("template_id")
+  key         String               // programmatic key, e.g., "email", "password", "character_name"
+  label       String               // UI label, e.g., "Netflix Email", "Account Password"
+  type        RequirementFieldType @default(TEXT)
+  required    Boolean              @default(true)
+  helpText    String?              @map("help_text") // Helper text for buyers
+  placeholder String?              // Input placeholder
+  options     Json?                // For SELECT type: ["Option 1", "Option 2"]
+  validation  Json?                // Validation rules: { minLength: 3, maxLength: 100, pattern: "regex" }
+  sensitive   Boolean              @default(false) // If true, value is encrypted at rest and masked in UI
+  sortOrder   Int                  @default(0) @map("sort_order")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  template RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, key])
+  @@index([templateId, sortOrder])
+  @@map("requirement_fields")
 }
 
 // ============================================

@@ -3,24 +3,39 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { prisma } from '@workspace/db';
 import { KeyPoolsService } from '../key-pools/key-pools.service';
+import { RequirementsService } from '../requirements/requirements.service';
+import { CryptoService } from '../crypto/crypto.service';
 import type {
   Order,
   PayOrderResponse,
   FulfillOrderResponse,
   GetOrderResponse,
+  RequirementsPayload,
+  GetSellerOrderResponse,
+  GetSellerOrdersResponse,
+  SellerOrder,
 } from '@workspace/contracts';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly keyPoolsService: KeyPoolsService) {}
+  constructor(
+    private readonly keyPoolsService: KeyPoolsService,
+    private readonly requirementsService: RequirementsService,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   /**
    * Create a new order (status: PENDING)
    */
-  async createOrder(buyerId: string, offerId: string): Promise<Order> {
+  async createOrder(
+    buyerId: string,
+    offerId: string,
+    requirementsPayload?: RequirementsPayload,
+  ): Promise<Order> {
     // Verify offer exists and is active
     const offer = await prisma.offer.findUnique({
       where: { id: offerId },
@@ -47,6 +62,43 @@ export class OrdersService {
       }
     }
 
+    // Validate requirements payload against template
+    const validation = await this.requirementsService.validateRequirementsPayload(
+      offer.variantId,
+      requirementsPayload,
+    );
+
+    if (!validation.valid) {
+      throw new BadRequestException(
+        `Requirements validation failed: ${validation.errors.join(', ')}`,
+      );
+    }
+
+    // Separate sensitive fields for encryption
+    let storedPayload: Record<string, unknown> | null = null;
+    let encryptedPayload: string | null = null;
+
+    if (requirementsPayload && Object.keys(requirementsPayload).length > 0) {
+      const sensitiveData: Record<string, unknown> = {};
+      const regularData: Record<string, unknown> = {};
+
+      for (const [key, value] of Object.entries(requirementsPayload)) {
+        if (validation.sensitiveFields.includes(key)) {
+          sensitiveData[key] = value;
+        } else {
+          regularData[key] = value;
+        }
+      }
+
+      // Store non-sensitive data as JSON
+      storedPayload = Object.keys(regularData).length > 0 ? regularData : null;
+
+      // Encrypt sensitive data if any
+      if (Object.keys(sensitiveData).length > 0) {
+        encryptedPayload = this.cryptoService.encrypt(JSON.stringify(sensitiveData));
+      }
+    }
+
     // Create order
     const order = await prisma.order.create({
       data: {
@@ -55,6 +107,8 @@ export class OrdersService {
         status: 'PENDING',
         priceAmount: offer.priceAmount,
         currency: offer.currency,
+        requirementsPayload: storedPayload,
+        requirementsPayloadEncrypted: encryptedPayload,
       },
     });
 
@@ -260,6 +314,149 @@ export class OrdersService {
     }
 
     return response;
+  }
+
+  // ============================================
+  // SELLER ORDER VIEWS
+  // ============================================
+
+  /**
+   * Get seller's orders (for manual fulfillment dashboard)
+   */
+  async getSellerOrders(sellerId: string): Promise<GetSellerOrdersResponse> {
+    const orders = await prisma.order.findMany({
+      where: {
+        offer: {
+          sellerId,
+        },
+      },
+      include: {
+        offer: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      orders: orders.map((order) => ({
+        ...this.mapSellerOrderToContract(order),
+        offer: {
+          id: order.offer.id,
+          deliveryType: order.offer.deliveryType,
+          variant: {
+            sku: order.offer.variant.sku,
+            product: {
+              name: order.offer.variant.product.name,
+            },
+          },
+        },
+      })),
+    };
+  }
+
+  /**
+   * Get single order for seller (with full requirements)
+   */
+  async getSellerOrder(orderId: string, sellerId: string): Promise<GetSellerOrderResponse> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        offer: {
+          include: {
+            variant: {
+              include: {
+                requirementTemplate: {
+                  include: {
+                    fields: {
+                      orderBy: { sortOrder: 'asc' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    // Verify seller owns this order
+    if (order.offer.sellerId !== sellerId) {
+      throw new ForbiddenException('You do not have access to this order');
+    }
+
+    // Decrypt and merge requirements payload
+    const requirementsPayload = this.getDecryptedRequirementsPayload(order);
+
+    // Build response
+    const template = order.offer.variant.requirementTemplate;
+
+    return {
+      order: {
+        ...this.mapOrderToContract(order),
+        requirementsPayload,
+      },
+      offer: {
+        id: order.offer.id,
+        deliveryType: order.offer.deliveryType,
+        deliveryInstructions: order.offer.deliveryInstructions,
+        estimatedDeliveryMinutes: order.offer.estimatedDeliveryMinutes,
+      },
+      requirementTemplate: template
+        ? {
+            id: template.id,
+            name: template.name,
+            fields: template.fields.map((f) => ({
+              key: f.key,
+              label: f.label,
+              type: f.type,
+              sensitive: f.sensitive,
+            })),
+          }
+        : null,
+    };
+  }
+
+  /**
+   * Helper: Decrypt and merge requirements payload
+   */
+  private getDecryptedRequirementsPayload(order: any): Record<string, unknown> | null {
+    const regularData = (order.requirementsPayload as Record<string, unknown>) || {};
+    let sensitiveData: Record<string, unknown> = {};
+
+    // Decrypt sensitive data if present
+    if (order.requirementsPayloadEncrypted) {
+      try {
+        const decrypted = this.cryptoService.decrypt(order.requirementsPayloadEncrypted);
+        sensitiveData = JSON.parse(decrypted);
+      } catch (error) {
+        // Log error but don't expose to user
+        console.error('Failed to decrypt requirements payload:', error);
+      }
+    }
+
+    const merged = { ...regularData, ...sensitiveData };
+    return Object.keys(merged).length > 0 ? merged : null;
+  }
+
+  /**
+   * Helper: Map Prisma order to seller contract (with requirements)
+   */
+  private mapSellerOrderToContract(order: any): SellerOrder {
+    return {
+      ...this.mapOrderToContract(order),
+      requirementsPayload: this.getDecryptedRequirementsPayload(order),
+    };
   }
 
   /**
