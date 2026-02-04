@@ -170,12 +170,22 @@ When seller chooses `deliveryType = MANUAL`:
 
 **Required fields** (enforced at publish):
 - **deliveryInstructions** (String): How the seller will fulfill orders
+  - Plain text, operational instructions for fulfillment
+  - NOT visible to buyers (internal use only)
+  - Separate from `descriptionMarkdown` (buyer-facing marketing copy)
+  - Editable in both creation wizard and manage offer screen
 - **estimatedDeliveryMinutes** (Int): SLA shown to buyers
-  - Preset choices in wizard: 15m, 1h, 6h, 24h, 3d, or custom
+  - Preset choices in wizard: 15m, 1h, 6h, 24h, 3d, or custom (5-10080 minutes)
+  - Editable in both creation wizard and manage offer screen
 
 **Optional fields**:
 - **stockCount** (Int): Manual inventory tracking
+  - Editable in manage offer screen
 - Buyer requirements collected via admin-defined templates (see Buyer Requirements System)
+
+**Field Separation (Important)**:
+- **deliveryInstructions**: Operational fulfillment process (seller-only, plain text)
+- **descriptionMarkdown**: Marketing copy visible to buyers (Markdown, with preview)
 
 ### Variant Capability Flags
 
@@ -525,12 +535,13 @@ Preview fetches current platform fee via `GET /settings/platform-fee` and comput
 
 ### Offers (Seller)
 
-| Method | Path                 | Description            |
-| ------ | -------------------- | ---------------------- |
-| POST   | `/offers/draft`      | Save offer draft       |
-| POST   | `/offers/publish`    | Publish offer          |
-| PATCH  | `/offers/:id/status` | Toggle active/inactive |
-| GET    | `/seller/offers`     | List seller's offers   |
+| Method | Path                 | Description                                           |
+| ------ | -------------------- | ----------------------------------------------------- |
+| POST   | `/offers/draft`      | Save offer draft                                      |
+| POST   | `/offers/publish`    | Publish offer                                         |
+| PATCH  | `/offers/:id`        | Update offer (pricing, description, delivery settings)|
+| PATCH  | `/offers/:id/status` | Toggle active/inactive                                |
+| GET    | `/seller/offers`     | List seller's offers                                  |
 
 ### Key Pools (Seller)
 

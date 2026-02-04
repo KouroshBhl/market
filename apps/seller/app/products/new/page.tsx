@@ -33,6 +33,7 @@ import { MarkdownPreview } from '@/components/markdown-preview';
 import { CategorySelector } from '@/components/category-selector';
 import { CatalogProductSelector } from '@/components/catalog-product-selector';
 import { VariantSelector } from '@/components/variant-selector';
+import { SlaSelector } from '@/components/sla-selector';
 import { useQuery } from '@tanstack/react-query';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -48,16 +49,6 @@ type Step =
   | 'pricing'
   | 'review';
 
-// SLA presets for manual delivery (in minutes)
-const SLA_PRESETS = [
-  { label: '15 minutes', value: 15 },
-  { label: '1 hour', value: 60 },
-  { label: '6 hours', value: 360 },
-  { label: '24 hours', value: 1440 },
-  { label: '3 days', value: 4320 },
-  { label: 'Custom', value: -1 }, // -1 indicates custom input
-] as const;
-
 interface WizardState {
   categoryId: string | null;
   productId: string | null;
@@ -70,7 +61,6 @@ interface WizardState {
   // Manual delivery
   deliveryInstructions: string;
   estimatedDeliveryMinutes: number | null; // SLA for manual delivery
-  customSlaValue: string; // For custom SLA input
 }
 
 const INITIAL_STATE: WizardState = {
@@ -84,7 +74,6 @@ const INITIAL_STATE: WizardState = {
   descriptionMarkdown: '',
   deliveryInstructions: '',
   estimatedDeliveryMinutes: null,
-  customSlaValue: '',
 };
 
 export default function NewOfferPage() {
@@ -830,74 +819,17 @@ export default function NewOfferPage() {
                       required
                     />
                     <p className='text-xs text-muted-foreground'>
-                      Describe how you will fulfill orders (e.g., "I will send the account credentials via chat within 1 hour")
+                      Operational instructions for fulfillment (e.g., "I will send account credentials via chat within 1 hour")
                     </p>
                   </div>
                   
-                  <div className='space-y-2'>
-                    <Label>Estimated Delivery Time (SLA) * (required)</Label>
-                    <div className='grid grid-cols-3 gap-2'>
-                      {SLA_PRESETS.map((preset) => (
-                        <button
-                          key={preset.value}
-                          type='button'
-                          onClick={() => {
-                            if (preset.value === -1) {
-                              // Custom: keep current custom value or reset
-                              updateState({ 
-                                estimatedDeliveryMinutes: wizardState.customSlaValue 
-                                  ? parseInt(wizardState.customSlaValue) 
-                                  : null 
-                              });
-                            } else {
-                              updateState({ 
-                                estimatedDeliveryMinutes: preset.value,
-                                customSlaValue: '' 
-                              });
-                            }
-                          }}
-                          className={`
-                            p-2 text-sm rounded-lg border-2 transition-all
-                            ${
-                              (preset.value === -1 && wizardState.customSlaValue) ||
-                              (preset.value !== -1 && wizardState.estimatedDeliveryMinutes === preset.value)
-                                ? 'border-ring bg-accent text-accent-foreground'
-                                : 'border-border hover:border-ring/50 text-foreground'
-                            }
-                          `}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    {/* Custom SLA input */}
-                    {(wizardState.customSlaValue || 
-                      (wizardState.estimatedDeliveryMinutes && 
-                       !SLA_PRESETS.slice(0, -1).some(p => p.value === wizardState.estimatedDeliveryMinutes))) && (
-                      <div className='flex gap-2 items-center mt-2'>
-                        <Input
-                          type='number'
-                          min='1'
-                          value={wizardState.customSlaValue}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            updateState({ 
-                              customSlaValue: val,
-                              estimatedDeliveryMinutes: val ? parseInt(val) : null 
-                            });
-                          }}
-                          placeholder='Enter minutes'
-                          className='w-32'
-                        />
-                        <span className='text-sm text-muted-foreground'>minutes</span>
-                      </div>
-                    )}
-                    
-                    <p className='text-xs text-muted-foreground'>
-                      How long will it typically take you to fulfill orders? This SLA is shown to buyers.
-                    </p>
-                  </div>
+                  <SlaSelector
+                    value={wizardState.estimatedDeliveryMinutes}
+                    onChange={(minutes) =>
+                      updateState({ estimatedDeliveryMinutes: minutes })
+                    }
+                    required
+                  />
                 </>
               )}
 

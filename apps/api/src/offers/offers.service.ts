@@ -317,6 +317,50 @@ export class OffersService {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
+    // Validate delivery-specific fields
+    if (existing.deliveryType === 'MANUAL') {
+      // If updating deliveryInstructions, ensure it's not empty for active offers
+      if (data.deliveryInstructions !== undefined && existing.status === 'active') {
+        if (data.deliveryInstructions === null || data.deliveryInstructions.trim() === '') {
+          throw new BadRequestException(
+            'Delivery instructions cannot be empty for active manual offers',
+          );
+        }
+      }
+
+      // If updating estimatedDeliveryMinutes, validate range
+      if (data.estimatedDeliveryMinutes !== undefined) {
+        if (data.estimatedDeliveryMinutes !== null) {
+          if (data.estimatedDeliveryMinutes < 5 || data.estimatedDeliveryMinutes > 10080) {
+            throw new BadRequestException(
+              'Estimated delivery time must be between 5 and 10080 minutes (7 days)',
+            );
+          }
+        } else if (existing.status === 'active') {
+          throw new BadRequestException(
+            'Estimated delivery time cannot be removed from active manual offers',
+          );
+        }
+      }
+    } else if (existing.deliveryType === 'AUTO_KEY') {
+      // Prevent updating MANUAL-only fields for AUTO_KEY offers
+      if (data.deliveryInstructions !== undefined && data.deliveryInstructions !== null) {
+        throw new BadRequestException(
+          'Delivery instructions are not applicable to auto-key offers',
+        );
+      }
+      if (data.estimatedDeliveryMinutes !== undefined && data.estimatedDeliveryMinutes !== null) {
+        throw new BadRequestException(
+          'Estimated delivery time is not applicable to auto-key offers',
+        );
+      }
+      if (data.stockCount !== undefined && data.stockCount !== null) {
+        throw new BadRequestException(
+          'Stock count is not applicable to auto-key offers (managed via key pool)',
+        );
+      }
+    }
+
     const offer = await prisma.offer.update({
       where: { id },
       data: {
@@ -324,6 +368,15 @@ export class OffersService {
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.descriptionMarkdown !== undefined && {
           descriptionMarkdown: data.descriptionMarkdown,
+        }),
+        ...(data.deliveryInstructions !== undefined && existing.deliveryType === 'MANUAL' && {
+          deliveryInstructions: data.deliveryInstructions,
+        }),
+        ...(data.estimatedDeliveryMinutes !== undefined && existing.deliveryType === 'MANUAL' && {
+          estimatedDeliveryMinutes: data.estimatedDeliveryMinutes,
+        }),
+        ...(data.stockCount !== undefined && existing.deliveryType === 'MANUAL' && {
+          stockCount: data.stockCount,
         }),
       },
       include: { keyPool: true },

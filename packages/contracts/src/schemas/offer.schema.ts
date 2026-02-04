@@ -77,11 +77,14 @@ export const PublishOfferSchema = z.object({
 
 export type PublishOffer = z.infer<typeof PublishOfferSchema>;
 
-// PATCH /offers/:id - Update offer (pricing, description, etc.)
+// PATCH /offers/:id - Update offer (pricing, description, delivery settings, etc.)
 export const UpdateOfferSchema = z.object({
   priceAmount: z.number().int().positive().optional(),
   currency: CurrencySchema.optional(),
   descriptionMarkdown: z.string().max(5000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
+  deliveryInstructions: z.string().max(1000).nullable().optional().transform((v) => (typeof v === 'string' ? v.trim() || null : v)),
+  estimatedDeliveryMinutes: z.number().int().min(5).max(10080).nullable().optional(), // 5 minutes to 7 days
+  stockCount: z.number().int().min(0).nullable().optional(),
 });
 
 export type UpdateOffer = z.infer<typeof UpdateOfferSchema>;
