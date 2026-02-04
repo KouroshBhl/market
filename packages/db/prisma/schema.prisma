@@ -45,7 +45,36 @@ enum OfferStatus {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  createdAt DateTime @default(now())
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  sellerTeamMemberships SellerTeamMember[]
+  assignedOrders        Order[]            @relation("OrderAssignee")
+
+  @@map("users")
+}
+
+enum SellerTeamRole {
+  OWNER
+  STAFF
+}
+
+// Seller team membership (for order assignment workflow)
+model SellerTeamMember {
+  id        String          @id @default(uuid())
+  sellerId  String          @map("seller_id") // Seller ID (demo UUID, will be FK in future)
+  userId    String          @map("user_id")
+  role      SellerTeamRole  @default(STAFF)
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, userId])
+  @@index([sellerId, isActive])
+  @@index([userId])
+  @@map("seller_team_members")
 }
 
 model Category {
@@ -166,10 +195,17 @@ enum KeyStatus {
 }
 
 enum OrderStatus {
-  PENDING
+  PENDING_PAYMENT
   PAID
   FULFILLED
-  CANCELED
+  CANCELLED
+  EXPIRED
+}
+
+enum WorkState {
+  UNASSIGNED
+  IN_PROGRESS
+  DONE
 }
 
 // Key Pool - Container for keys belonging to an Offer
@@ -244,26 +280,51 @@ model KeyAuditLog {
   @@map("key_audit_logs")
 }
 
-// Order - MVP minimal for testing fulfillment
+// Order - Full order lifecycle with admin assignment
 model Order {
-  id                            String      @id @default(uuid())
-  buyerId                       String      @map("buyer_id") // Future: FK to User
-  offerId                       String      @map("offer_id")
-  status                        OrderStatus @default(PENDING)
-  priceAmount                   Int         @map("price_amount") // Snapshot of offer price at purchase
+  id                            String           @id @default(uuid())
+  buyerId                       String           @map("buyer_id") // Future: FK to User
+  sellerId                      String           @map("seller_id") // Denormalized for faster queries
+  offerId                       String           @map("offer_id")
+  status                        OrderStatus      @default(PENDING_PAYMENT)
+  
+  // Price snapshots (captured at order creation)
+  basePriceAmount               Int              @map("base_price_amount") // Seller's base price (cents)
+  platformFeeBpsSnapshot        Int              @map("platform_fee_bps_snapshot") // Platform fee basis points at time of order
+  feeAmount                     Int              @map("fee_amount") // Calculated platform fee (cents)
+  buyerTotalAmount              Int              @map("buyer_total_amount") // Total buyer pays (base + fee, cents)
   currency                      Currency
-  deliveredKey                  String?     @map("delivered_key") @db.Text // Decrypted key stored on fulfillment (for buyer retrieval)
-  requirementsPayload           Json?       @map("requirements_payload") // Buyer-provided data matching template fields (non-sensitive)
-  requirementsPayloadEncrypted  String?     @map("requirements_payload_encrypted") @db.Text // Encrypted sensitive buyer data (account credentials, etc.)
-  createdAt                     DateTime    @default(now()) @map("created_at")
-  updatedAt                     DateTime    @updatedAt @map("updated_at")
+  
+  // Fulfillment data
+  deliveredKey                  String?          @map("delivered_key") @db.Text // Decrypted key stored on fulfillment (for buyer retrieval)
+  
+  // Buyer requirements
+  requirementsPayload           Json?            @map("requirements_payload") // Buyer-provided data matching template fields (non-sensitive)
+  requirementsPayloadEncrypted  String?          @map("requirements_payload_encrypted") @db.Text // Encrypted sensitive buyer data (account credentials, etc.)
+  
+  // Seller team assignment (internal workflow, NOT a status)
+  assignedToUserId              String?          @map("assigned_to_user_id") // Seller team member assigned
+  assignedAt                    DateTime?        @map("assigned_at")
+  workState                     WorkState?       @map("work_state") // UNASSIGNED | IN_PROGRESS | DONE
+  
+  // Lifecycle timestamps
+  paidAt                        DateTime?        @map("paid_at")
+  fulfilledAt                   DateTime?        @map("fulfilled_at")
+  cancelledAt                   DateTime?        @map("cancelled_at")
+  createdAt                     DateTime         @default(now()) @map("created_at")
+  updatedAt                     DateTime         @updatedAt @map("updated_at")
 
-  offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
-  keys  Key[] // One key per order for AUTO_KEY delivery
+  offer        Offer  @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  keys         Key[]  // One key per order for AUTO_KEY delivery
+  assignedTo   User?  @relation("OrderAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
 
   @@index([buyerId, status])
   @@index([offerId])
+  @@index([sellerId, status])
   @@index([status])
+  @@index([status, paidAt])
+  @@index([assignedToUserId])
+  @@index([sellerId, workState])
   @@map("orders")
 }
 

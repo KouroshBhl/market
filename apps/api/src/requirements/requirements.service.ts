@@ -206,8 +206,8 @@ export class RequirementsService {
             required: field.required ?? true,
             helpText: field.helpText ?? null,
             placeholder: field.placeholder ?? null,
-            options: field.options ?? null,
-            validation: field.validation ?? null,
+            options: field.options as any ?? null,
+            validation: field.validation as any ?? null,
             sensitive: field.sensitive ?? false,
             sortOrder: field.sortOrder ?? index,
           })),
@@ -225,7 +225,7 @@ export class RequirementsService {
 
     return {
       ...this.mapTemplateWithFieldsToContract(template),
-      variantCount: template._count.variants,
+      variantCount: template._count?.variants || 0,
     };
   }
 
@@ -276,8 +276,8 @@ export class RequirementsService {
             required: field.required ?? true,
             helpText: field.helpText ?? null,
             placeholder: field.placeholder ?? null,
-            options: field.options ?? null,
-            validation: field.validation ?? null,
+            options: field.options as any ?? null,
+            validation: field.validation as any ?? null,
             sensitive: field.sensitive ?? false,
             sortOrder: field.sortOrder ?? index,
           })),

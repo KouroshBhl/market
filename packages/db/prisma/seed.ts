@@ -693,6 +693,216 @@ async function main() {
   });
   console.log('  ✓ Linked "In-Game Currency" template to WoW EU 30-day variant');
 
+  // ============================================
+  // SEED USERS & SELLER TEAM (for order assignment)
+  // ============================================
+  console.log('\n👥 Seeding users and seller team...');
+
+  const demoSellerId = '00000000-0000-0000-0000-000000000001';
+  const demoBuyerId = '00000000-0000-0000-0000-000000000002';
+
+  // Create demo users
+  const ownerUser = await prisma.user.upsert({
+    where: { id: 'u0000000-0000-0000-0000-000000000001' },
+    update: {},
+    create: {
+      id: 'u0000000-0000-0000-0000-000000000001',
+      email: 'owner@seller.com',
+      name: 'John Doe (Owner)',
+    },
+  });
+
+  const staffUser1 = await prisma.user.upsert({
+    where: { id: 'u0000000-0000-0000-0000-000000000002' },
+    update: {},
+    create: {
+      id: 'u0000000-0000-0000-0000-000000000002',
+      email: 'sarah@seller.com',
+      name: 'Sarah Smith',
+    },
+  });
+
+  const staffUser2 = await prisma.user.upsert({
+    where: { id: 'u0000000-0000-0000-0000-000000000003' },
+    update: {},
+    create: {
+      id: 'u0000000-0000-0000-0000-000000000003',
+      email: 'mike@seller.com',
+      name: 'Mike Johnson',
+    },
+  });
+
+  // Create seller team members
+  await prisma.sellerTeamMember.upsert({
+    where: {
+      sellerId_userId: {
+        sellerId: demoSellerId,
+        userId: ownerUser.id,
+      },
+    },
+    update: {},
+    create: {
+      sellerId: demoSellerId,
+      userId: ownerUser.id,
+      role: 'OWNER',
+    },
+  });
+
+  await prisma.sellerTeamMember.upsert({
+    where: {
+      sellerId_userId: {
+        sellerId: demoSellerId,
+        userId: staffUser1.id,
+      },
+    },
+    update: {},
+    create: {
+      sellerId: demoSellerId,
+      userId: staffUser1.id,
+      role: 'STAFF',
+    },
+  });
+
+  await prisma.sellerTeamMember.upsert({
+    where: {
+      sellerId_userId: {
+        sellerId: demoSellerId,
+        userId: staffUser2.id,
+      },
+    },
+    update: {},
+    create: {
+      sellerId: demoSellerId,
+      userId: staffUser2.id,
+      role: 'STAFF',
+    },
+  });
+
+  console.log('  ✓ 3 users created');
+  console.log('  ✓ Seller team: 1 OWNER + 2 STAFF');
+
+  // ============================================
+  // SEED SAMPLE ORDERS (for testing Orders UI)
+  // ============================================
+  console.log('\n📦 Seeding sample orders...');
+
+  // Get some offers to create orders for
+  const offers = await prisma.offer.findMany({
+    where: { status: 'active' },
+    take: 3,
+    include: { variant: true },
+  });
+
+  if (offers.length > 0) {
+    // Order 1: PAID manual order that's OVERDUE (created 2 days ago, 1h SLA)
+    const manualOffer = offers.find((o) => o.deliveryType === 'MANUAL') || offers[0];
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    
+    await prisma.order.upsert({
+      where: { id: 'o0000000-0000-0000-0000-000000000001' },
+      update: {},
+      create: {
+        id: 'o0000000-0000-0000-0000-000000000001',
+        buyerId: demoBuyerId,
+        sellerId: manualOffer.sellerId,
+        offerId: manualOffer.id,
+        status: 'PAID',
+        basePriceAmount: manualOffer.priceAmount,
+        platformFeeBpsSnapshot: 300,
+        feeAmount: Math.round((manualOffer.priceAmount * 300) / 10000),
+        buyerTotalAmount: manualOffer.priceAmount + Math.round((manualOffer.priceAmount * 300) / 10000),
+        currency: manualOffer.currency,
+        paidAt: twoDaysAgo,
+        createdAt: new Date(twoDaysAgo.getTime() - 60000), // 1 min before paid
+        requirementsPayload: {
+          server_name: 'EU-Ravencrest',
+          character_name: 'TestCharacter123',
+        },
+      },
+    });
+    console.log('  ✓ PAID manual order (overdue)');
+
+    // Order 2: PAID auto-key order (ready for fulfillment)
+    const autoOffer = offers.find((o) => o.deliveryType === 'AUTO_KEY') || offers[0];
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    
+    await prisma.order.upsert({
+      where: { id: 'o0000000-0000-0000-0000-000000000002' },
+      update: {},
+      create: {
+        id: 'o0000000-0000-0000-0000-000000000002',
+        buyerId: demoBuyerId,
+        sellerId: autoOffer.sellerId,
+        offerId: autoOffer.id,
+        status: 'PAID',
+        basePriceAmount: autoOffer.priceAmount,
+        platformFeeBpsSnapshot: 300,
+        feeAmount: Math.round((autoOffer.priceAmount * 300) / 10000),
+        buyerTotalAmount: autoOffer.priceAmount + Math.round((autoOffer.priceAmount * 300) / 10000),
+        currency: autoOffer.currency,
+        paidAt: oneHourAgo,
+        createdAt: new Date(oneHourAgo.getTime() - 60000),
+      },
+    });
+    console.log('  ✓ PAID auto-key order (ready to fulfill)');
+
+    // Order 3: FULFILLED order
+    const fulfilledOffer = offers[0];
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    
+    await prisma.order.upsert({
+      where: { id: 'o0000000-0000-0000-0000-000000000003' },
+      update: {},
+      create: {
+        id: 'o0000000-0000-0000-0000-000000000003',
+        buyerId: demoBuyerId,
+        sellerId: fulfilledOffer.sellerId,
+        offerId: fulfilledOffer.id,
+        status: 'FULFILLED',
+        basePriceAmount: fulfilledOffer.priceAmount,
+        platformFeeBpsSnapshot: 300,
+        feeAmount: Math.round((fulfilledOffer.priceAmount * 300) / 10000),
+        buyerTotalAmount: fulfilledOffer.priceAmount + Math.round((fulfilledOffer.priceAmount * 300) / 10000),
+        currency: fulfilledOffer.currency,
+        paidAt: threeDaysAgo,
+        fulfilledAt: new Date(threeDaysAgo.getTime() + 30 * 60 * 1000), // 30 min after paid
+        createdAt: new Date(threeDaysAgo.getTime() - 60000),
+      },
+    });
+    console.log('  ✓ FULFILLED order');
+
+    // Order 4: PAID manual order assigned to staff user
+    if (manualOffer) {
+      const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000);
+      
+      await prisma.order.upsert({
+        where: { id: 'o0000000-0000-0000-0000-000000000004' },
+        update: {},
+        create: {
+          id: 'o0000000-0000-0000-0000-000000000004',
+          buyerId: demoBuyerId,
+          sellerId: manualOffer.sellerId,
+          offerId: manualOffer.id,
+          status: 'PAID',
+          basePriceAmount: manualOffer.priceAmount,
+          platformFeeBpsSnapshot: 300,
+          feeAmount: Math.round((manualOffer.priceAmount * 300) / 10000),
+          buyerTotalAmount: manualOffer.priceAmount + Math.round((manualOffer.priceAmount * 300) / 10000),
+          currency: manualOffer.currency,
+          paidAt: fiveHoursAgo,
+          createdAt: new Date(fiveHoursAgo.getTime() - 60000),
+          assignedToUserId: staffUser1.id, // Assigned to Sarah
+          assignedAt: new Date(fiveHoursAgo.getTime() + 10 * 60 * 1000), // 10 min after paid
+          workState: 'IN_PROGRESS',
+        },
+      });
+      console.log('  ✓ PAID manual order (assigned to staff member)');
+    }
+  }
+
+  const teamMemberCount = await prisma.sellerTeamMember.count();
+  const userCount = await prisma.user.count();
+
   // Verify counts
   const parentCount = await prisma.category.count({
     where: { parentId: null },
@@ -704,6 +914,7 @@ async function main() {
   const variantCount = await prisma.catalogVariant.count();
   const templateCount = await prisma.requirementTemplate.count();
   const fieldCount = await prisma.requirementField.count();
+  const orderCount = await prisma.order.count();
 
   console.log('\n✅ Seeding complete!');
   console.log(`   • ${parentCount} parent categories`);
@@ -713,10 +924,16 @@ async function main() {
   console.log(`   • Platform fee configured: 3%`);
   console.log(`   • ${templateCount} requirement templates`);
   console.log(`   • ${fieldCount} requirement fields`);
+  console.log(`   • ${userCount} users`);
+  console.log(`   • ${teamMemberCount} seller team members (1 OWNER + 2 STAFF)`);
+  console.log(`   • ${orderCount} sample orders`);
   console.log('\n📍 View in Prisma Studio:');
   console.log('   • RequirementTemplate table - see 3 admin-defined templates');
   console.log('   • RequirementField table - see all fields with validation rules');
-  console.log('   • CatalogVariant table - check requirementTemplateId FK\n');
+  console.log('   • CatalogVariant table - check requirementTemplateId FK');
+  console.log('   • User table - see 3 demo users');
+  console.log('   • SellerTeamMember table - see team members with roles');
+  console.log('   • Order table - see sample orders with seller team assignments\n');
 }
 
 main()

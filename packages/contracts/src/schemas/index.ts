@@ -10,3 +10,4 @@ export * from './key-pool.schema';
 export * from './order.schema';
 export * from './settings.schema';
 export * from './requirement.schema';
+export * from './seller-team.schema';

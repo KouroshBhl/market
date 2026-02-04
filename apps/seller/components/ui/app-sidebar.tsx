@@ -12,6 +12,7 @@ import {
   PieChart,
   Settings2,
   SquareTerminal,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { NavMain } from '@workspace/ui/components/nav-main';
@@ -68,6 +69,17 @@ const data = {
         {
           title: 'Settings',
           url: '#',
+        },
+      ],
+    },
+    {
+      title: 'Orders',
+      url: '/orders',
+      icon: ShoppingCart,
+      items: [
+        {
+          title: 'All Orders',
+          url: '/orders',
         },
       ],
     },

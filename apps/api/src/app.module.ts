@@ -13,6 +13,7 @@ import { KeyPoolsModule } from './key-pools/key-pools.module';
 import { OrdersModule } from './orders/orders.module';
 import { SettingsModule } from './settings/settings.module';
 import { RequirementsModule } from './requirements/requirements.module';
+import { SellerTeamModule } from './seller-team/seller-team.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RequirementsModule } from './requirements/requirements.module';
     OrdersModule,
     SettingsModule,
     RequirementsModule,
+    SellerTeamModule,
     OpenApiModule,
   ],
 })

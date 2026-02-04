@@ -523,6 +523,108 @@ Preview fetches current platform fee via `GET /settings/platform-fee` and comput
 
 ---
 
+---
+
+## Order Lifecycle
+
+### Core Order Statuses (Buyer/System Truth)
+
+The order status is the **single source of truth** for the order's lifecycle:
+
+- **PENDING_PAYMENT**: Order created, awaiting payment
+- **PAID**: Payment received, ready for fulfillment
+- **FULFILLED**: Order delivered/completed
+- **CANCELLED**: Order cancelled (buyer or seller)
+- **EXPIRED**: Order expired (payment timeout)
+
+**Design principle**: Status is clean and minimal. Admin assignment is NOT a status.
+
+### Order Creation & Payment
+
+When a buyer creates an order:
+
+1. Order is created with status `PENDING_PAYMENT`
+2. **Price snapshots** are captured:
+   - `basePriceAmount`: Seller's base price (cents)
+   - `platformFeeBpsSnapshot`: Platform fee basis points at time of order
+   - `feeAmount`: Calculated platform fee (cents)
+   - `buyerTotalAmount`: Total buyer pays (base + fee, cents)
+   - `currency`: Currency code
+3. Buyer-provided requirements are validated and stored (sensitive fields encrypted)
+4. Seller is denormalized on order (`sellerId`) for faster queries
+
+When payment is received (webhook in production, `/orders/:id/pay` in MVP):
+
+- Status changes to `PAID`
+- `paidAt` timestamp is set
+- For AUTO_KEY offers, fulfillment can be triggered automatically (via `/orders/:id/fulfill-auto`)
+
+### Fulfillment
+
+**AUTO_KEY Fulfillment** (via `/orders/:id/fulfill-auto`):
+
+- Atomic key reservation using transaction + `SELECT ... FOR UPDATE SKIP LOCKED`
+- Key status: `AVAILABLE` → `RESERVED` → `DELIVERED`
+- Decrypted key stored in `order.deliveredKey` for buyer retrieval
+- Status changes to `FULFILLED`, `fulfilledAt` timestamp set
+- **Idempotent**: Calling multiple times returns same key
+
+**MANUAL Fulfillment** (via `/orders/:id/fulfill-manual`):
+
+- Seller marks order as fulfilled after manual delivery
+- Requires `sellerId` for authorization (only seller can fulfill their orders)
+- Status changes to `FULFILLED`, `fulfilledAt` timestamp set
+- **Idempotent**: Calling multiple times succeeds
+
+### Overdue Detection (MANUAL Orders Only)
+
+For MANUAL delivery orders in PAID status:
+
+- **Overdue** is computed, NOT stored as a status
+- Formula: `current_time > (paidAt + estimatedDeliveryMinutes)`
+- `slaDueAt` (ISO string) is computed: `paidAt + SLA`
+- Seller dashboard displays overdue badge + due timestamp
+
+**Computed fields returned by `/orders/seller`**:
+
+- `isOverdue`: boolean
+- `slaDueAt`: ISO string (or null if not MANUAL/PAID)
+
+### Seller Team Assignment Workflow (Internal, NOT a Status)
+
+Seller team assignment is a **separate workflow** for internal order management, independent of order status.
+
+**Key principle**: This is **seller team workflow** (owner + staff managing their own orders), NOT admin assignment.
+
+**Seller Team Model**:
+
+- `SellerTeamMember`: Links `sellerId` + `userId` with role (`OWNER` | `STAFF`)
+- Only team members can claim/view/fulfill orders for their seller
+- `OWNER` can reassign orders to other team members
+- `STAFF` can only fulfill orders assigned to them
+
+**Assignment fields** (on Order model):
+
+- `assignedToUserId`: Team member user ID (null = unassigned)
+- `assignedAt`: When team member claimed order
+- `workState`: `UNASSIGNED` | `IN_PROGRESS` | `DONE`
+
+**Assignment endpoints** (seller team):
+
+- `GET /seller/team` - List team members (for assignee dropdown)
+- `POST /seller/orders/:id/claim` - Team member claims order (atomic, only if `assignedToUserId` is null)
+- `PATCH /seller/orders/:id/assignee` - Owner reassigns order to another team member (OWNER only)
+
+**Authorization rules**:
+
+- Claim: Any team member can claim unassigned order (sets `workState=IN_PROGRESS`)
+- Fulfill: Only assignee OR owner can fulfill
+- Reassign: Only OWNER can reassign
+
+**Design principle**: Assignment is seller internal workflow, not visible to buyers.
+
+---
+
 ## API Endpoints Summary
 
 ### Catalog (Public)
@@ -555,19 +657,30 @@ Preview fetches current platform fee via `GET /settings/platform-fee` and comput
 
 ### Orders (Buyer)
 
-| Method | Path                  | Description               |
-| ------ | --------------------- | ------------------------- |
-| POST   | `/orders`             | Create order (with requirementsPayload) |
-| POST   | `/orders/:id/pay`     | Pay (MVP stub)            |
-| POST   | `/orders/:id/fulfill` | Atomic key delivery       |
-| GET    | `/orders/:id`         | Order with delivered keys |
+| Method | Path                     | Description                                           |
+| ------ | ------------------------ | ----------------------------------------------------- |
+| POST   | `/orders`                | Create order (with requirementsPayload)               |
+| POST   | `/orders/:id/pay`        | Pay order (MVP stub, sets status=PAID, paidAt)        |
+| POST   | `/orders/:id/fulfill-auto` | Fulfill AUTO_KEY order atomically (idempotent)      |
+| GET    | `/orders/:id`            | Order details (buyer view, includes delivered key)    |
 
 ### Orders (Seller)
 
-| Method | Path                  | Description               |
-| ------ | --------------------- | ------------------------- |
-| GET    | `/orders/seller`      | List seller's orders      |
-| GET    | `/orders/seller/:id`  | Order details with buyer requirements |
+| Method | Path                         | Description                                           |
+| ------ | ---------------------------- | ----------------------------------------------------- |
+| GET    | `/orders/seller`             | List seller orders (cursor-based pagination, sorting, filtering) |
+| GET    | `/orders/seller/:id`         | Order details with buyer requirements (decrypted)     |
+| POST   | `/orders/:id/fulfill-manual` | Fulfill MANUAL order (seller-only, idempotent)        |
+
+**Cursor pagination**: `/orders/seller` returns `{ items, nextCursor }`. Params: `cursor`, `limit` (default 20), `sort` (e.g., `paidAt_desc`, `buyerTotalAmount_desc`), `filterTab` (`all`, `unassigned`, `needsFulfillment`, `fulfilled`, `overdue`).
+
+### Seller Team
+
+| Method | Path                             | Description                                           |
+| ------ | -------------------------------- | ----------------------------------------------------- |
+| GET    | `/seller/team`                   | List seller team members (for assignee dropdown)      |
+| POST   | `/seller/orders/:id/claim`       | Team member claims order (atomic)                     |
+| PATCH  | `/seller/orders/:id/assignee`    | Owner reassigns order to team member (OWNER only)     |
 
 ### Buyer Requirements (Public)
 

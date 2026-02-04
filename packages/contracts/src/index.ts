@@ -51,15 +51,30 @@ import {
 } from './schemas/key-pool.schema';
 import {
   OrderStatusSchema,
+  WorkStateSchema,
   OrderSchema,
   CreateOrderSchema,
   PayOrderResponseSchema,
-  FulfillOrderResponseSchema,
+  FulfillAutoKeyResponseSchema,
+  FulfillManualResponseSchema,
   GetOrderResponseSchema,
   SellerOrderSchema,
   GetSellerOrderResponseSchema,
   GetSellerOrdersResponseSchema,
+  OrderSortSchema,
+  OrderFilterTabSchema,
+  GetSellerOrdersQuerySchema,
+  GetSellerOrdersCursorResponseSchema,
+  ClaimOrderResponseSchema,
+  ReassignOrderSchema,
+  ReassignOrderResponseSchema,
 } from './schemas/order.schema';
+
+import {
+  SellerTeamRoleSchema,
+  SellerTeamMemberSchema,
+  GetSellerTeamResponseSchema,
+} from './schemas/seller-team.schema';
 
 import {
   RequirementFieldTypeSchema,
@@ -117,14 +132,28 @@ registry.register('KeyAuditAction', KeyAuditActionSchema);
 
 // Order schemas
 registry.register('OrderStatus', OrderStatusSchema);
+registry.register('WorkState', WorkStateSchema);
 registry.register('Order', OrderSchema);
 registry.register('CreateOrder', CreateOrderSchema);
 registry.register('PayOrderResponse', PayOrderResponseSchema);
-registry.register('FulfillOrderResponse', FulfillOrderResponseSchema);
+registry.register('FulfillAutoKeyResponse', FulfillAutoKeyResponseSchema);
+registry.register('FulfillManualResponse', FulfillManualResponseSchema);
 registry.register('GetOrderResponse', GetOrderResponseSchema);
 registry.register('SellerOrder', SellerOrderSchema);
 registry.register('GetSellerOrderResponse', GetSellerOrderResponseSchema);
 registry.register('GetSellerOrdersResponse', GetSellerOrdersResponseSchema);
+registry.register('OrderSort', OrderSortSchema);
+registry.register('OrderFilterTab', OrderFilterTabSchema);
+registry.register('GetSellerOrdersQuery', GetSellerOrdersQuerySchema);
+registry.register('GetSellerOrdersCursorResponse', GetSellerOrdersCursorResponseSchema);
+registry.register('ClaimOrderResponse', ClaimOrderResponseSchema);
+registry.register('ReassignOrder', ReassignOrderSchema);
+registry.register('ReassignOrderResponse', ReassignOrderResponseSchema);
+
+// Seller Team schemas
+registry.register('SellerTeamRole', SellerTeamRoleSchema);
+registry.register('SellerTeamMember', SellerTeamMemberSchema);
+registry.register('GetSellerTeamResponse', GetSellerTeamResponseSchema);
 
 // Requirement schemas
 registry.register('RequirementFieldType', RequirementFieldTypeSchema);

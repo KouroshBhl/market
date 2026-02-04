@@ -239,6 +239,46 @@ curl -X POST http://localhost:4000/orders \
 curl "http://localhost:4000/orders/seller/<order-uuid>?sellerId=00000000-0000-0000-0000-000000000001"
 # Returns order with buyer-provided requirements for manual fulfillment
 
+# Pay order (MVP simulation - sets status to PAID)
+curl -X POST http://localhost:4000/orders/<order-uuid>/pay
+
+# Fulfill AUTO_KEY order (atomically reserves and delivers key)
+curl -X POST http://localhost:4000/orders/<order-uuid>/fulfill-auto
+# Expected: {"success":true,"order":{...},"deliveredKey":"XXXX-XXXX-XXXX-XXXX"}
+# Idempotent: calling again returns same key
+
+# Fulfill MANUAL order (seller team member marks as fulfilled)
+# Authorization: Must be assignee OR team owner
+curl -X POST "http://localhost:4000/orders/<order-uuid>/fulfill-manual?sellerId=00000000-0000-0000-0000-000000000001&userId=u0000000-0000-0000-0000-000000000001"
+# Expected: {"success":true,"order":{...,"status":"FULFILLED","workState":"DONE"}}
+# Idempotent: calling again succeeds
+# 403 if user is not assignee and not OWNER
+
+# List seller orders (cursor-based pagination with sorting and filtering)
+curl "http://localhost:4000/orders/seller?sellerId=00000000-0000-0000-0000-000000000001&limit=20&sort=paidAt_desc&filterTab=all"
+# Returns { items: [...], nextCursor: "..." }
+# Use nextCursor for next page: &cursor=<nextCursor>
+# Sort options: paidAt_desc, paidAt_asc, buyerTotalAmount_desc, buyerTotalAmount_asc, status_asc, status_desc
+# Filter tabs: all, unassigned, needsFulfillment, fulfilled, overdue
+
+# Seller Team: Get team members (for assignee dropdown)
+curl "http://localhost:4000/seller/team?sellerId=00000000-0000-0000-0000-000000000001"
+# Expected: {"members":[{"id":"...","userId":"...","role":"OWNER","user":{...}},...]}
+
+# Seller Team: Claim order (atomically assign to current user)
+curl -X POST "http://localhost:4000/orders/seller/orders/<order-uuid>/claim?sellerId=00000000-0000-0000-0000-000000000001&userId=u0000000-0000-0000-0000-000000000002"
+# Expected: {"success":true,"order":{...,"assignedToUserId":"u0000...","workState":"IN_PROGRESS"}}
+# 409 if already assigned to someone else
+# 403 if user is not a team member
+
+# Seller Team: Reassign order (OWNER only)
+curl -X PATCH "http://localhost:4000/orders/seller/orders/<order-uuid>/assignee?sellerId=00000000-0000-0000-0000-000000000001&userId=u0000000-0000-0000-0000-000000000001" \
+  -H "Content-Type: application/json" \
+  -d '{"assignedToUserId":"u0000000-0000-0000-0000-000000000003"}'
+# Expected: {"success":true,"order":{...,"assignedToUserId":"u0000...","workState":"IN_PROGRESS"}}
+# 403 if user is not OWNER
+# 400 if target user is not a team member
+
 # Admin: Create requirement template
 curl -X POST http://localhost:4000/admin/requirement-templates \
   -H "Content-Type: application/json" \

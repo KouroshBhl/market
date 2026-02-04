@@ -9,15 +9,20 @@ import { prisma } from '@workspace/db';
 import { KeyPoolsService } from '../key-pools/key-pools.service';
 import { RequirementsService } from '../requirements/requirements.service';
 import { CryptoService } from '../crypto/crypto.service';
+import { SellerTeamService } from '../seller-team/seller-team.service';
 import type {
   Order,
   PayOrderResponse,
-  FulfillOrderResponse,
+  FulfillAutoKeyResponse,
+  FulfillManualResponse,
   GetOrderResponse,
   RequirementsPayload,
   GetSellerOrderResponse,
   GetSellerOrdersResponse,
   SellerOrder,
+  ClaimOrderResponse,
+  ReassignOrder,
+  ReassignOrderResponse,
 } from '@workspace/contracts';
 
 @Injectable()
@@ -26,10 +31,12 @@ export class OrdersService {
     private readonly keyPoolsService: KeyPoolsService,
     private readonly requirementsService: RequirementsService,
     private readonly cryptoService: CryptoService,
+    private readonly sellerTeamService: SellerTeamService,
   ) {}
 
   /**
-   * Create a new order (status: PENDING)
+   * Create a new order (status: PENDING_PAYMENT)
+   * Snapshots pricing including platform fee
    */
   async createOrder(
     buyerId: string,
@@ -99,15 +106,28 @@ export class OrdersService {
       }
     }
 
-    // Create order
+    // Get platform fee settings
+    const platformSettings = await prisma.platformSettings.findFirst();
+    const platformFeeBps = platformSettings?.platformFeeBps || 300; // Default 3%
+
+    // Calculate pricing with snapshots
+    const basePriceAmount = offer.priceAmount; // Seller's price in cents
+    const feeAmount = Math.round((basePriceAmount * platformFeeBps) / 10000);
+    const buyerTotalAmount = basePriceAmount + feeAmount;
+
+    // Create order with price snapshots
     const order = await prisma.order.create({
       data: {
         buyerId,
+        sellerId: offer.sellerId,
         offerId,
-        status: 'PENDING',
-        priceAmount: offer.priceAmount,
+        status: 'PENDING_PAYMENT',
+        basePriceAmount,
+        platformFeeBpsSnapshot: platformFeeBps,
+        feeAmount,
+        buyerTotalAmount,
         currency: offer.currency,
-        requirementsPayload: storedPayload,
+        requirementsPayload: storedPayload as any,
         requirementsPayloadEncrypted: encryptedPayload,
       },
     });
@@ -118,25 +138,30 @@ export class OrdersService {
   /**
    * Simulate payment (MVP)
    * In production, this would be a webhook from payment provider
+   * For AUTO_KEY offers, can trigger auto-fulfillment inline
    */
   async payOrder(orderId: string): Promise<PayOrderResponse> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      include: { offer: { include: { keyPool: true } } },
     });
 
     if (!order) {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
-    if (order.status !== 'PENDING') {
+    if (order.status !== 'PENDING_PAYMENT') {
       throw new BadRequestException(
-        `Cannot pay order with status ${order.status}. Only PENDING orders can be paid.`,
+        `Cannot pay order with status ${order.status}. Only PENDING_PAYMENT orders can be paid.`,
       );
     }
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: { status: 'PAID' },
+      data: { 
+        status: 'PAID',
+        paidAt: new Date(),
+      },
     });
 
     return {
@@ -146,10 +171,10 @@ export class OrdersService {
   }
 
   /**
-   * Fulfill an order (deliver product/key)
+   * Fulfill AUTO_KEY order atomically
    * MUST be idempotent: calling twice returns same result
    */
-  async fulfillOrder(orderId: string): Promise<FulfillOrderResponse> {
+  async fulfillAutoKey(orderId: string): Promise<FulfillAutoKeyResponse> {
     // Get order with offer details
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -164,9 +189,16 @@ export class OrdersService {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
-    // Idempotency check: if already fulfilled, return existing result
+    // Idempotency check: if already fulfilled, return existing key
     if (order.status === 'FULFILLED') {
-      return this.getExistingFulfillmentResult(order);
+      if (!order.deliveredKey) {
+        throw new ConflictException('Order is fulfilled but no key was found');
+      }
+      return {
+        success: true,
+        order: this.mapOrderToContract(order),
+        deliveredKey: order.deliveredKey,
+      };
     }
 
     if (order.status !== 'PAID') {
@@ -175,25 +207,17 @@ export class OrdersService {
       );
     }
 
-    // Handle based on delivery type
-    if (order.offer.deliveryType === 'AUTO_KEY') {
-      return this.fulfillAutoKeyOrder(order);
-    } else {
-      return this.fulfillManualOrder(order);
+    if (order.offer.deliveryType !== 'AUTO_KEY') {
+      throw new BadRequestException('This endpoint is only for AUTO_KEY orders');
     }
-  }
 
-  /**
-   * Fulfill AUTO_KEY order with atomic key reservation
-   */
-  private async fulfillAutoKeyOrder(order: any): Promise<FulfillOrderResponse> {
     if (!order.offer.keyPool) {
       throw new BadRequestException('Offer has no key pool configured');
     }
 
     // Atomic key reservation using transaction + row locking
     const deliveredKey = await prisma.$transaction(async (tx) => {
-      // Reserve and get a key atomically
+      // Reserve and get a key atomically (uses SKIP LOCKED)
       const keyCode = await this.keyPoolsService.reserveKey(
         order.offer.keyPool.id,
         order.id,
@@ -223,6 +247,7 @@ export class OrdersService {
         where: { id: order.id },
         data: {
           status: 'FULFILLED',
+          fulfilledAt: new Date(),
           deliveredKey: keyCode, // Store decrypted key for buyer retrieval
         },
       });
@@ -243,42 +268,200 @@ export class OrdersService {
   }
 
   /**
-   * Fulfill MANUAL order (just mark as fulfilled)
+   * Fulfill MANUAL order (seller team member marks as fulfilled)
+   * MUST be idempotent: calling twice returns same result
+   * Authorization: Only assignee or OWNER can fulfill
    */
-  private async fulfillManualOrder(order: any): Promise<FulfillOrderResponse> {
+  async fulfillManual(orderId: string, sellerId: string, userId: string): Promise<FulfillManualResponse> {
+    // Get order with offer details
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        offer: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    // Verify seller owns this order
+    if (order.sellerId !== sellerId) {
+      throw new ForbiddenException('Order does not belong to this seller');
+    }
+
+    // Idempotency check: if already fulfilled, return success
+    if (order.status === 'FULFILLED') {
+      return {
+        success: true,
+        order: this.mapOrderToContract(order),
+      };
+    }
+
+    if (order.status !== 'PAID') {
+      throw new BadRequestException(
+        `Cannot fulfill order with status ${order.status}. Only PAID orders can be fulfilled.`,
+      );
+    }
+
+    if (order.offer.deliveryType !== 'MANUAL') {
+      throw new BadRequestException('This endpoint is only for MANUAL orders');
+    }
+
+    // Check authorization: must be assignee OR owner
+    const role = await this.sellerTeamService.getMemberRole(sellerId, userId);
+    if (!role) {
+      throw new ForbiddenException('User is not a member of this seller team');
+    }
+
+    const isAssignee = order.assignedToUserId === userId;
+    const isOwner = role === 'OWNER';
+
+    if (!isAssignee && !isOwner) {
+      throw new ForbiddenException('Only the assigned team member or team owner can fulfill this order');
+    }
+
     const updatedOrder = await prisma.order.update({
       where: { id: order.id },
-      data: { status: 'FULFILLED' },
+      data: { 
+        status: 'FULFILLED',
+        fulfilledAt: new Date(),
+        workState: 'DONE',
+      },
     });
 
     return {
       success: true,
       order: this.mapOrderToContract(updatedOrder),
-      deliveryInstructions: order.offer.deliveryInstructions || undefined,
     };
   }
 
+  // ============================================
+  // SELLER TEAM ASSIGNMENT WORKFLOW
+  // ============================================
+
   /**
-   * Get existing fulfillment result (for idempotency)
+   * Seller team member claims an order (atomically to prevent race conditions)
    */
-  private async getExistingFulfillmentResult(order: any): Promise<FulfillOrderResponse> {
-    if (order.offer.deliveryType === 'AUTO_KEY') {
-      // Get the delivered key
-      const deliveredKey = order.deliveredKey || 
-        await this.keyPoolsService.getDeliveredKeyForOrder(order.id);
+  async claimOrder(orderId: string, sellerId: string, userId: string): Promise<ClaimOrderResponse> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { assignedTo: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    // Verify order belongs to this seller
+    if (order.sellerId !== sellerId) {
+      throw new ForbiddenException('Order does not belong to this seller');
+    }
+
+    // Verify user is team member
+    const role = await this.sellerTeamService.getMemberRole(sellerId, userId);
+    if (!role) {
+      throw new ForbiddenException('User is not a member of this seller team');
+    }
+
+    // Check if already assigned
+    if (order.assignedToUserId) {
+      const assignee = order.assignedTo;
+      throw new ConflictException(
+        `Order is already assigned to ${assignee?.name || assignee?.email || 'another user'}`
+      );
+    }
+
+    // Atomic claim: only succeed if assignedToUserId is null
+    try {
+      const updatedOrder = await prisma.order.update({
+        where: { 
+          id: orderId,
+          assignedToUserId: null, // Only update if not already assigned
+        },
+        data: {
+          assignedToUserId: userId,
+          assignedAt: new Date(),
+          workState: 'IN_PROGRESS',
+        },
+        include: {
+          assignedTo: true, // Include user data for response
+        },
+      });
 
       return {
         success: true,
-        order: this.mapOrderToContract(order),
-        deliveredKey: deliveredKey || undefined,
+        order: {
+          ...this.mapOrderToContract(updatedOrder),
+          assignedToUserId: updatedOrder.assignedToUserId,
+          assignedAt: updatedOrder.assignedAt?.toISOString() || null,
+          workState: updatedOrder.workState,
+          assignedTo: updatedOrder.assignedTo
+            ? {
+                id: updatedOrder.assignedTo.id,
+                email: updatedOrder.assignedTo.email,
+                name: updatedOrder.assignedTo.name,
+              }
+            : null,
+        },
       };
-    } else {
-      return {
-        success: true,
-        order: this.mapOrderToContract(order),
-        deliveryInstructions: order.offer.deliveryInstructions || undefined,
-      };
+    } catch (error) {
+      throw new ConflictException('Order is already assigned to another team member');
     }
+  }
+
+  /**
+   * Owner reassigns order to another team member
+   */
+  async reassignOrder(
+    orderId: string,
+    sellerId: string,
+    currentUserId: string,
+    dto: ReassignOrder,
+  ): Promise<ReassignOrderResponse> {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    // Verify order belongs to this seller
+    if (order.sellerId !== sellerId) {
+      throw new ForbiddenException('Order does not belong to this seller');
+    }
+
+    // Verify current user is OWNER
+    const role = await this.sellerTeamService.getMemberRole(sellerId, currentUserId);
+    if (role !== 'OWNER') {
+      throw new ForbiddenException('Only team owners can reassign orders');
+    }
+
+    // Verify target user is team member
+    const targetRole = await this.sellerTeamService.getMemberRole(sellerId, dto.assignedToUserId);
+    if (!targetRole) {
+      throw new BadRequestException('Target user is not a member of this seller team');
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        assignedToUserId: dto.assignedToUserId,
+        assignedAt: new Date(),
+        workState: 'IN_PROGRESS',
+      },
+    });
+
+    return {
+      success: true,
+      order: {
+        ...this.mapOrderToContract(updatedOrder),
+        assignedToUserId: updatedOrder.assignedToUserId,
+        assignedAt: updatedOrder.assignedAt?.toISOString() || null,
+        workState: updatedOrder.workState,
+      },
+    };
   }
 
   /**
@@ -321,15 +504,90 @@ export class OrdersService {
   // ============================================
 
   /**
-   * Get seller's orders (for manual fulfillment dashboard)
+   * Get seller's orders (cursor-based pagination with sorting and filtering)
+   * Includes computed fields: isOverdue, slaDueAt, assignee info
    */
-  async getSellerOrders(sellerId: string): Promise<GetSellerOrdersResponse> {
+  async getSellerOrders(
+    sellerId: string,
+    cursor?: string,
+    limit: number = 20,
+    sort: string = 'paidAt_desc',
+    filterTab: string = 'all',
+  ): Promise<{
+    items: any[];
+    nextCursor: string | null;
+  }> {
+    // Parse cursor (base64 encoded order ID)
+    let cursorId: string | undefined;
+    if (cursor) {
+      try {
+        cursorId = Buffer.from(cursor, 'base64').toString('utf-8');
+      } catch {
+        throw new BadRequestException('Invalid cursor');
+      }
+    }
+
+    // Build where clause based on filter tab
+    const where: any = {
+      sellerId,
+    };
+
+    switch (filterTab) {
+      case 'unassigned':
+        where.assignedToUserId = null;
+        where.status = 'PAID';
+        break;
+      case 'needsFulfillment':
+        where.status = 'PAID';
+        break;
+      case 'fulfilled':
+        where.status = 'FULFILLED';
+        break;
+      case 'overdue':
+        // Overdue: MANUAL orders that are PAID and past SLA
+        where.status = 'PAID';
+        where.offer = {
+          deliveryType: 'MANUAL',
+        };
+        // Note: Cannot filter overdue in DB easily; will filter in memory
+        break;
+    }
+
+    // Add cursor condition
+    if (cursorId) {
+      where.id = {
+        not: cursorId,
+      };
+    }
+
+    // Parse sort
+    let orderBy: any = {};
+    switch (sort) {
+      case 'paidAt_asc':
+        orderBy = { paidAt: 'asc' };
+        break;
+      case 'paidAt_desc':
+        orderBy = { paidAt: 'desc' };
+        break;
+      case 'buyerTotalAmount_asc':
+        orderBy = { buyerTotalAmount: 'asc' };
+        break;
+      case 'buyerTotalAmount_desc':
+        orderBy = { buyerTotalAmount: 'desc' };
+        break;
+      case 'status_asc':
+        orderBy = { status: 'asc' };
+        break;
+      case 'status_desc':
+        orderBy = { status: 'desc' };
+        break;
+      default:
+        orderBy = { paidAt: 'desc' };
+    }
+
+    // Fetch orders
     const orders = await prisma.order.findMany({
-      where: {
-        offer: {
-          sellerId,
-        },
-      },
+      where,
       include: {
         offer: {
           include: {
@@ -340,24 +598,107 @@ export class OrdersService {
             },
           },
         },
+        assignedTo: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
+      take: limit + 1, // Fetch one extra to determine if there's a next page
+      ...(cursorId && {
+        cursor: {
+          id: cursorId,
+        },
+        skip: 1, // Skip the cursor itself
+      }),
     });
 
+    // Filter overdue in memory if needed
+    let filteredOrders = orders;
+    if (filterTab === 'overdue') {
+      filteredOrders = orders.filter((order) => {
+        const { isOverdue } = this.computeOverdueStatus(order, order.offer);
+        return isOverdue;
+      });
+
+      // Sort overdue by paidAt asc (oldest first)
+      filteredOrders.sort((a, b) => {
+        if (!a.paidAt || !b.paidAt) return 0;
+        return a.paidAt.getTime() - b.paidAt.getTime();
+      });
+    }
+
+    // Check if there's a next page
+    const hasMore = filteredOrders.length > limit;
+    const items = hasMore ? filteredOrders.slice(0, limit) : filteredOrders;
+
+    // Generate next cursor
+    const nextCursor = hasMore
+      ? Buffer.from(items[items.length - 1].id).toString('base64')
+      : null;
+
     return {
-      orders: orders.map((order) => ({
-        ...this.mapSellerOrderToContract(order),
-        offer: {
-          id: order.offer.id,
-          deliveryType: order.offer.deliveryType,
-          variant: {
-            sku: order.offer.variant.sku,
-            product: {
-              name: order.offer.variant.product.name,
+      items: items.map((order) => {
+        const { isOverdue, slaDueAt } = this.computeOverdueStatus(
+          order,
+          order.offer,
+        );
+
+        return {
+          ...this.mapOrderToContract(order),
+          requirementsPayload: this.getDecryptedRequirementsPayload(order),
+          isOverdue,
+          slaDueAt,
+          assignedToUserId: order.assignedToUserId,
+          workState: order.workState,
+          assignedTo: order.assignedTo
+            ? {
+                id: order.assignedTo.id,
+                email: order.assignedTo.email,
+                name: order.assignedTo.name,
+              }
+            : null,
+          offer: {
+            id: order.offer.id,
+            deliveryType: order.offer.deliveryType,
+            estimatedDeliveryMinutes: order.offer.estimatedDeliveryMinutes,
+            variant: {
+              sku: order.offer.variant.sku,
+              region: order.offer.variant.region,
+              product: {
+                name: order.offer.variant.product.name,
+              },
             },
           },
-        },
-      })),
+        };
+      }),
+      nextCursor,
+    };
+  }
+
+  /**
+   * Compute if order is overdue based on paidAt + SLA
+   * Only applies to MANUAL delivery PAID orders
+   */
+  private computeOverdueStatus(
+    order: any,
+    offer: any,
+  ): { isOverdue: boolean; slaDueAt: string | null } {
+    // Only MANUAL orders with SLA can be overdue
+    if (
+      offer.deliveryType !== 'MANUAL' ||
+      !offer.estimatedDeliveryMinutes ||
+      order.status !== 'PAID' ||
+      !order.paidAt
+    ) {
+      return { isOverdue: false, slaDueAt: null };
+    }
+
+    const paidAt = new Date(order.paidAt);
+    const slaDueAt = new Date(paidAt.getTime() + offer.estimatedDeliveryMinutes * 60 * 1000);
+    const now = new Date();
+    const isOverdue = now > slaDueAt;
+
+    return {
+      isOverdue,
+      slaDueAt: slaDueAt.toISOString(),
     };
   }
 
@@ -383,6 +724,7 @@ export class OrdersService {
             },
           },
         },
+        assignedTo: true, // CRITICAL: Include assignee user data
       },
     });
 
@@ -405,6 +747,16 @@ export class OrdersService {
       order: {
         ...this.mapOrderToContract(order),
         requirementsPayload,
+        // CRITICAL: Include assignment fields for seller UI
+        assignedToUserId: order.assignedToUserId,
+        workState: order.workState,
+        assignedTo: order.assignedTo
+          ? {
+              id: order.assignedTo.id,
+              email: order.assignedTo.email,
+              name: order.assignedTo.name,
+            }
+          : null,
       },
       offer: {
         id: order.offer.id,
@@ -450,26 +802,23 @@ export class OrdersService {
   }
 
   /**
-   * Helper: Map Prisma order to seller contract (with requirements)
-   */
-  private mapSellerOrderToContract(order: any): SellerOrder {
-    return {
-      ...this.mapOrderToContract(order),
-      requirementsPayload: this.getDecryptedRequirementsPayload(order),
-    };
-  }
-
-  /**
    * Helper: Map Prisma order to contract
    */
   private mapOrderToContract(order: any): Order {
     return {
       id: order.id,
       buyerId: order.buyerId,
+      sellerId: order.sellerId,
       offerId: order.offerId,
       status: order.status,
-      priceAmount: order.priceAmount,
+      basePriceAmount: order.basePriceAmount,
+      platformFeeBpsSnapshot: order.platformFeeBpsSnapshot,
+      feeAmount: order.feeAmount,
+      buyerTotalAmount: order.buyerTotalAmount,
       currency: order.currency,
+      paidAt: order.paidAt?.toISOString() || null,
+      fulfilledAt: order.fulfilledAt?.toISOString() || null,
+      cancelledAt: order.cancelledAt?.toISOString() || null,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };
