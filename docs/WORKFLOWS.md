@@ -420,15 +420,29 @@ pnpm --filter api build
 
 ### Seller Pricing Preview
 
-- [ ] Navigate to offer "Pricing & Delivery" tab
-- [ ] Label shows "Price (USD) *" or selected currency
+**During Offer Creation (Wizard):**
+- [ ] Navigate to "New Offer" wizard
+- [ ] Proceed to "Pricing & Delivery" step
 - [ ] Enter price (e.g., 19.99)
-- [ ] Preview card appears showing:
+- [ ] Pricing preview card appears immediately showing:
   - Your price (seller receives): USD 19.99
   - Platform fee (3.00%): +USD 0.60
   - Buyer pays: USD 20.59
-- [ ] Change currency → label updates
-- [ ] Preview calculations update in real-time
+- [ ] Change price → preview updates live
+- [ ] Change currency → preview updates live
+
+**In Manage Offer (Pricing Tab):**
+- [ ] Navigate to existing offer "Pricing" tab
+- [ ] Label shows "Price (USD) *" or selected currency
+- [ ] Enter or modify price
+- [ ] Preview card shows calculated buyer price with platform fee
+
+**In Seller Dashboard Table:**
+- [ ] View offers list
+- [ ] Pricing column shows BOTH:
+  - Base: USD 19.99 (seller receives)
+  - Buyer: USD 20.59 (with platform fee)
+- [ ] Both prices clearly labeled and visible
 
 ### Before PR
 

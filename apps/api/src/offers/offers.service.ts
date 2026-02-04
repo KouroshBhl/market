@@ -17,12 +17,14 @@ import type {
 } from '@workspace/contracts';
 import { CatalogService } from '../catalog/catalog.service';
 import { KeyPoolsService } from '../key-pools/key-pools.service';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class OffersService {
   constructor(
     private readonly catalogService: CatalogService,
     private readonly keyPoolsService: KeyPoolsService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   /**
@@ -42,7 +44,10 @@ export class OffersService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Enrich offers with availability info
+    // Get platform fee for buyer price calculation
+    const platformSettings = await this.settingsService.getPlatformSettings();
+
+    // Enrich offers with availability info and computed buyer price
     const enrichedOffers = await Promise.all(
       offers.map(async (offer) => {
         let autoKeyAvailableCount: number | undefined;
@@ -55,7 +60,12 @@ export class OffersService {
           availability = avail;
         }
 
-        return this.mapOfferWithDetailsToContract(offer, autoKeyAvailableCount, availability);
+        return this.mapOfferWithDetailsToContract(
+          offer, 
+          autoKeyAvailableCount, 
+          availability,
+          platformSettings.platformFeeBps
+        );
       }),
     );
 
@@ -82,6 +92,9 @@ export class OffersService {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
+    // Get platform fee for buyer price calculation
+    const platformSettings = await this.settingsService.getPlatformSettings();
+
     // Get availability for AUTO_KEY offers
     let autoKeyAvailableCount: number | undefined;
     let availability: AvailabilityStatus | undefined;
@@ -93,7 +106,12 @@ export class OffersService {
       availability = avail;
     }
 
-    return this.mapOfferWithDetailsToContract(offer, autoKeyAvailableCount, availability);
+    return this.mapOfferWithDetailsToContract(
+      offer, 
+      autoKeyAvailableCount, 
+      availability,
+      platformSettings.platformFeeBps
+    );
   }
 
   /**
@@ -401,7 +419,18 @@ export class OffersService {
     offer: any,
     autoKeyAvailableCount?: number,
     availability?: AvailabilityStatus,
+    platformFeeBps?: number,
   ): OfferWithDetails {
+    // Calculate buyer price (base + platform fee)
+    let buyerPriceAmount: number | undefined;
+    if (platformFeeBps !== undefined && offer.priceAmount > 0) {
+      const commission = this.settingsService.calculateCommission(
+        offer.priceAmount,
+        platformFeeBps
+      );
+      buyerPriceAmount = commission.buyerTotalCents;
+    }
+
     return {
       id: offer.id,
       sellerId: offer.sellerId,
@@ -419,6 +448,7 @@ export class OffersService {
       updatedAt: offer.updatedAt.toISOString(),
       autoKeyAvailableCount,
       availability,
+      buyerPriceAmount,
       variant: {
         id: offer.variant.id,
         productId: offer.variant.productId,

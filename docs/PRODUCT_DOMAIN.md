@@ -318,9 +318,17 @@ All calculations use integer cents to avoid floating-point precision issues:
 
 ### Seller UI Pricing Preview
 
-The seller "Pricing & Delivery" step shows:
+Sellers see pricing preview in TWO places:
 
-1. **Seller price** - Base amount seller enters and receives
+1. **During Offer Creation** (wizard → Pricing & Config step)
+   - Shown immediately as seller enters price
+   - Updates live when price or currency changes
+   
+2. **In Manage Offer → Pricing tab**
+   - Shown when editing existing offer pricing
+
+Preview displays:
+1. **Your price (seller receives)** - Base amount seller enters and receives
 2. **Platform fee** - Percentage and computed amount
 3. **Buyer pays** - Total the buyer will pay at checkout
 
@@ -343,6 +351,8 @@ Preview fetches current platform fee via `GET /settings/platform-fee` and comput
 - Upload keys to key pools
 - Set pricing and delivery config
 - Toggle offer active/inactive
+- View both base price (seller receives) and buyer price (with platform fee) in dashboard
+- See pricing preview during offer creation and when editing pricing
 - **CANNOT** create new catalog products
 - **CANNOT** change platform commission rate
 

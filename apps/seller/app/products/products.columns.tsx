@@ -156,19 +156,36 @@ export const columns: ColumnDef<OfferWithDetails>[] = [
     },
   },
   {
-    accessorKey: "priceAmount",
-    header: "Price",
+    id: "pricing",
+    header: "Pricing",
     cell: ({ row }) => {
-      const priceAmount = row.getValue("priceAmount") as number | null
-      const currency = row.original.currency
+      const offer = row.original
+      const priceAmount = offer.priceAmount
+      const buyerPriceAmount = offer.buyerPriceAmount
+      const currency = offer.currency
       
       if (priceAmount === null || !currency) {
         return <span className="text-muted-foreground text-xs">No price</span>
       }
       
+      const formatPrice = (cents: number) => (cents / 100).toFixed(2)
+      
       return (
-        <div className="font-medium">
-          {(priceAmount / 100).toFixed(2)} {currency}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Base:</span>
+            <span className="font-medium text-foreground">
+              {formatPrice(priceAmount)} {currency}
+            </span>
+          </div>
+          {buyerPriceAmount && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Buyer:</span>
+              <span className="font-semibold text-foreground">
+                {formatPrice(buyerPriceAmount)} {currency}
+              </span>
+            </div>
+          )}
         </div>
       )
     },

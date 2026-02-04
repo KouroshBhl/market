@@ -52,17 +52,17 @@ const data = {
   ],
   navMain: [
     {
-      title: 'Products',
+      title: 'Offers',
       url: '/products',
       icon: SquareTerminal,
       isActive: true,
       items: [
         {
-          title: 'All Products',
+          title: 'All Offers',
           url: '/products',
         },
         {
-          title: 'New Product',
+          title: 'New Offer',
           url: '/products/new',
         },
         {

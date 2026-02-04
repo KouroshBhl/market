@@ -18,7 +18,7 @@ export const OfferSchema = z.object({
   variantId: z.string().uuid(),
   status: OfferStatusSchema,
   deliveryType: DeliveryTypeSchema,
-  priceAmount: z.number().int(),
+  priceAmount: z.number().int(), // Base price (seller receives) in cents
   currency: CurrencySchema,
   stockCount: z.number().int().nullable(), // For MANUAL delivery only
   descriptionMarkdown: z.string().nullable(),
@@ -30,6 +30,8 @@ export const OfferSchema = z.object({
   // Derived fields for AUTO_KEY offers
   autoKeyAvailableCount: z.number().int().optional(), // Count of available keys
   availability: AvailabilityStatusSchema.optional(), // in_stock | out_of_stock
+  // Computed pricing fields
+  buyerPriceAmount: z.number().int().optional(), // Total buyer pays (base + platform fee) in cents
 });
 
 export type Offer = z.infer<typeof OfferSchema>;

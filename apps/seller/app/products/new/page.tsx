@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { DeliveryType, Currency, CatalogProduct, CatalogVariant } from '@workspace/contracts';
+import type {
+  DeliveryType,
+  Currency,
+  CatalogProduct,
+  CatalogVariant,
+} from '@workspace/contracts';
 import {
   Button,
   Alert,
@@ -35,7 +40,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 // For now, hardcode sellerId until auth is implemented
 const SELLER_ID = '00000000-0000-0000-0000-000000000001';
 
-type Step = 'category' | 'product' | 'variant' | 'delivery-type' | 'pricing' | 'review';
+type Step =
+  | 'category'
+  | 'product'
+  | 'variant'
+  | 'delivery-type'
+  | 'pricing'
+  | 'review';
 
 interface WizardState {
   categoryId: string | null;
@@ -112,6 +123,16 @@ export default function NewOfferPage() {
     enabled: !!wizardState.productId,
   });
 
+  // Fetch platform fee for pricing preview
+  const { data: platformFee } = useQuery({
+    queryKey: ['platformFee'],
+    queryFn: async () => {
+      const response = await fetch(`${API_URL}/settings/platform-fee`);
+      if (!response.ok) throw new Error('Failed to fetch platform fee');
+      return response.json();
+    },
+  });
+
   const updateState = (updates: Partial<WizardState>) => {
     setWizardState((prev) => ({ ...prev, ...updates }));
     setError(null);
@@ -128,8 +149,8 @@ export default function NewOfferPage() {
   const canProceedFromProduct = wizardState.productId !== null;
   const canProceedFromVariant = wizardState.variantId !== null;
   const canProceedFromDeliveryType = wizardState.deliveryType !== null;
-  const canProceedFromPricing = 
-    wizardState.priceAmount.trim() !== '' && 
+  const canProceedFromPricing =
+    wizardState.priceAmount.trim() !== '' &&
     !isNaN(Number(wizardState.priceAmount)) &&
     Number(wizardState.priceAmount) > 0;
 
@@ -149,9 +170,9 @@ export default function NewOfferPage() {
   // Auto-select delivery type if only one is available, or reset if current selection is invalid
   useEffect(() => {
     if (!selectedVariant) return;
-    
+
     const { supportsAutoKey, supportsManual } = selectedVariant;
-    
+
     // If only one delivery type is supported, auto-select it
     if (supportsAutoKey && !supportsManual) {
       updateState({ deliveryType: 'AUTO_KEY' });
@@ -184,11 +205,18 @@ export default function NewOfferPage() {
 
       // Add optional fields if provided
       if (wizardState.variantId) payload.variantId = wizardState.variantId;
-      if (wizardState.priceAmount.trim() && !isNaN(Number(wizardState.priceAmount))) {
+      if (
+        wizardState.priceAmount.trim() &&
+        !isNaN(Number(wizardState.priceAmount))
+      ) {
         payload.priceAmount = Math.round(Number(wizardState.priceAmount) * 100); // Convert to cents
       }
       if (wizardState.currency) payload.currency = wizardState.currency;
-      if (wizardState.deliveryType === 'MANUAL' && wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+      if (
+        wizardState.deliveryType === 'MANUAL' &&
+        wizardState.stockCount.trim() &&
+        !isNaN(Number(wizardState.stockCount))
+      ) {
         payload.stockCount = Number(wizardState.stockCount);
       }
       if (wizardState.descriptionMarkdown.trim()) {
@@ -219,22 +247,23 @@ export default function NewOfferPage() {
 
       const result = await response.json();
       console.log('✅ Draft saved:', result);
-      
+
       toast({
-        title: "✓ Success",
-        description: "Draft saved successfully!",
-        variant: "success",
+        title: '✓ Success',
+        description: 'Draft saved successfully!',
+        variant: 'success',
       });
-      
+
       setTimeout(() => router.push('/products'), 1000);
     } catch (err) {
       console.error('💥 Draft save error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save draft';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to save draft';
       setError(errorMessage);
       toast({
-        title: "✕ Error",
+        title: '✕ Error',
         description: errorMessage,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -264,7 +293,11 @@ export default function NewOfferPage() {
         currency: wizardState.currency,
       };
 
-      if (wizardState.deliveryType === 'MANUAL' && wizardState.stockCount.trim() && !isNaN(Number(wizardState.stockCount))) {
+      if (
+        wizardState.deliveryType === 'MANUAL' &&
+        wizardState.stockCount.trim() &&
+        !isNaN(Number(wizardState.stockCount))
+      ) {
         payload.stockCount = Number(wizardState.stockCount);
       }
       if (wizardState.descriptionMarkdown.trim()) {
@@ -290,7 +323,7 @@ export default function NewOfferPage() {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('❌ Error response:', errorData);
-        
+
         if (errorData.errors && Array.isArray(errorData.errors)) {
           setValidationErrors(errorData.errors);
         }
@@ -299,25 +332,26 @@ export default function NewOfferPage() {
 
       const result = await response.json();
       console.log('✅ Offer published successfully:', result);
-      
+
       // Show success message
       toast({
-        title: "✓ Success",
-        description: "Offer published successfully!",
-        variant: "success",
+        title: '✓ Success',
+        description: 'Offer published successfully!',
+        variant: 'success',
       });
-      
+
       // Redirect to products page after a short delay
       setTimeout(() => router.push('/products'), 1500);
     } catch (err) {
       console.error('💥 Publish error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to publish offer';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to publish offer';
       setError(errorMessage);
       // Also show toast for immediate feedback
       toast({
-        title: "✕ Error",
+        title: '✕ Error',
         description: errorMessage,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -341,13 +375,21 @@ export default function NewOfferPage() {
             {categoriesLoading ? (
               <div className='text-center py-12'>
                 <div className='w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto'></div>
-                <p className='text-muted-foreground mt-4'>Loading categories...</p>
+                <p className='text-muted-foreground mt-4'>
+                  Loading categories...
+                </p>
               </div>
             ) : categoriesData?.parents ? (
               <CategorySelector
                 categories={categoriesData.parents}
                 selectedCategoryId={wizardState.categoryId}
-                onSelect={(id) => updateState({ categoryId: id, productId: null, variantId: null })}
+                onSelect={(id) =>
+                  updateState({
+                    categoryId: id,
+                    productId: null,
+                    variantId: null,
+                  })
+                }
               />
             ) : (
               <Alert variant='destructive'>
@@ -359,7 +401,7 @@ export default function NewOfferPage() {
               <Button variant='ghost' onClick={() => router.push('/products')}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => goToStep('product')}
                 disabled={!canProceedFromCategory}
               >
@@ -384,13 +426,17 @@ export default function NewOfferPage() {
             {productsLoading ? (
               <div className='text-center py-12'>
                 <div className='w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto'></div>
-                <p className='text-muted-foreground mt-4'>Loading products...</p>
+                <p className='text-muted-foreground mt-4'>
+                  Loading products...
+                </p>
               </div>
             ) : catalogProductsData?.products ? (
               <CatalogProductSelector
                 products={catalogProductsData.products}
                 selectedProductId={wizardState.productId}
-                onSelect={(id) => updateState({ productId: id, variantId: null })}
+                onSelect={(id) =>
+                  updateState({ productId: id, variantId: null })
+                }
               />
             ) : (
               <Alert variant='destructive'>
@@ -402,7 +448,7 @@ export default function NewOfferPage() {
               <Button variant='ghost' onClick={() => goToStep('category')}>
                 ← Back
               </Button>
-              <Button 
+              <Button
                 onClick={() => goToStep('variant')}
                 disabled={!canProceedFromProduct}
               >
@@ -420,14 +466,17 @@ export default function NewOfferPage() {
                 Select Variant
               </h2>
               <p className='text-muted-foreground'>
-                Choose a variant (region/duration/edition) to create your offer for
+                Choose a variant (region/duration/edition) to create your offer
+                for
               </p>
             </div>
 
             {variantsLoading ? (
               <div className='text-center py-12'>
                 <div className='w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto'></div>
-                <p className='text-muted-foreground mt-4'>Loading variants...</p>
+                <p className='text-muted-foreground mt-4'>
+                  Loading variants...
+                </p>
               </div>
             ) : variantsData?.variants ? (
               <VariantSelector
@@ -447,7 +496,7 @@ export default function NewOfferPage() {
               <Button variant='ghost' onClick={() => goToStep('product')}>
                 ← Back
               </Button>
-              <Button 
+              <Button
                 onClick={() => goToStep('delivery-type')}
                 disabled={!canProceedFromVariant}
               >
@@ -491,13 +540,33 @@ export default function NewOfferPage() {
                 description='Perfect for digital products like game keys, software licenses, or gift cards. Keys are delivered instantly to customers after purchase.'
                 badge='Instant delivery'
                 icon={
-                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' />
+                  <svg
+                    className='w-6 h-6'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z'
+                    />
                   </svg>
                 }
                 badgeIcon={
-                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M13 10V3L4 14h7v7l9-11h-7z' />
+                  <svg
+                    className='w-4 h-4'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M13 10V3L4 14h7v7l9-11h-7z'
+                    />
                   </svg>
                 }
                 selected={wizardState.deliveryType === 'AUTO_KEY'}
@@ -511,13 +580,33 @@ export default function NewOfferPage() {
                 description="Ideal for custom services, physical goods, or products that require personal attention. You'll fulfill orders manually."
                 badge='Flexible delivery'
                 icon={
-                  <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />
+                  <svg
+                    className='w-6 h-6'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                    />
                   </svg>
                 }
                 badgeIcon={
-                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />
+                  <svg
+                    className='w-4 h-4'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
+                    />
                   </svg>
                 }
                 selected={wizardState.deliveryType === 'MANUAL'}
@@ -527,19 +616,21 @@ export default function NewOfferPage() {
               />
             </div>
 
-            {!availableDeliveryTypes.autoKey && !availableDeliveryTypes.manual && (
-              <Alert variant='destructive' className='mt-6'>
-                <AlertDescription>
-                  The selected variant does not support any delivery method. Please go back and select a different variant.
-                </AlertDescription>
-              </Alert>
-            )}
+            {!availableDeliveryTypes.autoKey &&
+              !availableDeliveryTypes.manual && (
+                <Alert variant='destructive' className='mt-6'>
+                  <AlertDescription>
+                    The selected variant does not support any delivery method.
+                    Please go back and select a different variant.
+                  </AlertDescription>
+                </Alert>
+              )}
 
             <div className='mt-8 flex gap-4'>
               <Button variant='ghost' onClick={() => goToStep('variant')}>
                 ← Back
               </Button>
-              <Button 
+              <Button
                 onClick={() => goToStep('pricing')}
                 disabled={!canProceedFromDeliveryType}
               >
@@ -549,7 +640,26 @@ export default function NewOfferPage() {
           </div>
         );
 
-      case 'pricing':
+      case 'pricing': {
+        // Calculate pricing preview
+        const priceCents = Math.round(
+          parseFloat(wizardState.priceAmount || '0') * 100
+        );
+        const commission =
+          platformFee && priceCents > 0
+            ? {
+                sellerPriceCents: priceCents,
+                feeAmountCents: Math.round(
+                  (priceCents * platformFee.platformFeeBps) / 10000
+                ),
+                buyerTotalCents:
+                  priceCents +
+                  Math.round((priceCents * platformFee.platformFeeBps) / 10000),
+              }
+            : null;
+
+        const formatPrice = (cents: number) => (cents / 100).toFixed(2);
+
         return (
           <div>
             <div className='mb-8'>
@@ -564,16 +674,23 @@ export default function NewOfferPage() {
             <Card className='p-6 space-y-6'>
               <div className='grid grid-cols-2 gap-4'>
                 <div className='space-y-2'>
-                  <Label htmlFor='price'>Price * (in dollars)</Label>
+                  <Label htmlFor='price'>
+                    Price ({wizardState.currency}) *
+                  </Label>
                   <Input
                     id='price'
                     type='number'
                     step='0.01'
                     min='0.01'
                     value={wizardState.priceAmount}
-                    onChange={(e) => updateState({ priceAmount: e.target.value })}
+                    onChange={(e) =>
+                      updateState({ priceAmount: e.target.value })
+                    }
                     placeholder='9.99'
                   />
+                  <p className='text-xs text-muted-foreground'>
+                    This is the amount you will receive per sale
+                  </p>
                 </div>
 
                 <div className='space-y-2'>
@@ -581,7 +698,9 @@ export default function NewOfferPage() {
                   <Select
                     id='currency'
                     value={wizardState.currency}
-                    onChange={(e) => updateState({ currency: e.target.value as Currency })}
+                    onChange={(e) =>
+                      updateState({ currency: e.target.value as Currency })
+                    }
                   >
                     <option value='USD'>USD - US Dollar</option>
                     <option value='EUR'>EUR - Euro</option>
@@ -592,6 +711,45 @@ export default function NewOfferPage() {
                 </div>
               </div>
 
+              {/* Pricing Preview Card */}
+              {commission && priceCents > 0 && (
+                <Card className='p-4 bg-muted/30 border-2'>
+                  <h3 className='font-semibold text-foreground mb-3'>
+                    Pricing Preview
+                  </h3>
+                  <div className='space-y-2'>
+                    <div className='flex justify-between items-center'>
+                      <span className='text-sm text-muted-foreground'>
+                        Your price (seller receives):
+                      </span>
+                      <span className='font-medium text-foreground'>
+                        {wizardState.currency}{' '}
+                        {formatPrice(commission.sellerPriceCents)}
+                      </span>
+                    </div>
+                    <div className='flex justify-between items-center'>
+                      <span className='text-sm text-muted-foreground'>
+                        Platform fee (
+                        {platformFee?.platformFeePercent.toFixed(2)}%):
+                      </span>
+                      <span className='font-medium text-foreground'>
+                        +{wizardState.currency}{' '}
+                        {formatPrice(commission.feeAmountCents)}
+                      </span>
+                    </div>
+                    <div className='border-t pt-2 flex justify-between items-center'>
+                      <span className='font-semibold text-foreground'>
+                        Buyer pays:
+                      </span>
+                      <span className='font-bold text-foreground text-lg'>
+                        {wizardState.currency}{' '}
+                        {formatPrice(commission.buyerTotalCents)}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               {wizardState.deliveryType === 'MANUAL' && (
                 <div className='space-y-2'>
                   <Label htmlFor='stockCount'>Stock Count (optional)</Label>
@@ -600,7 +758,9 @@ export default function NewOfferPage() {
                     type='number'
                     min='0'
                     value={wizardState.stockCount}
-                    onChange={(e) => updateState({ stockCount: e.target.value })}
+                    onChange={(e) =>
+                      updateState({ stockCount: e.target.value })
+                    }
                     placeholder='e.g., 100'
                   />
                   <p className='text-xs text-muted-foreground'>
@@ -626,7 +786,9 @@ export default function NewOfferPage() {
                   <Input
                     id='deliveryInstructions'
                     value={wizardState.deliveryInstructions}
-                    onChange={(e) => updateState({ deliveryInstructions: e.target.value })}
+                    onChange={(e) =>
+                      updateState({ deliveryInstructions: e.target.value })
+                    }
                     placeholder='Instructions for fulfilling this order...'
                   />
                 </div>
@@ -635,17 +797,30 @@ export default function NewOfferPage() {
               {wizardState.deliveryType === 'AUTO_KEY' && (
                 <div className='space-y-2 p-4 bg-muted/50 rounded-lg border border-border'>
                   <div className='flex items-center gap-2'>
-                    <svg className='w-5 h-5 text-muted-foreground' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' />
+                    <svg
+                      className='w-5 h-5 text-muted-foreground'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z'
+                      />
                     </svg>
-                    <span className='font-medium text-foreground'>Auto-Key Delivery</span>
+                    <span className='font-medium text-foreground'>
+                      Auto-Key Delivery
+                    </span>
                   </div>
                   <p className='text-sm text-muted-foreground'>
-                    A key pool will be automatically created when you publish this offer. 
-                    You can upload keys after publishing.
+                    A key pool will be automatically created when you publish
+                    this offer. You can upload keys after publishing.
                   </p>
                   <p className='text-xs text-muted-foreground'>
-                    Note: The offer will show as &quot;Out of Stock&quot; until you upload keys.
+                    Note: The offer will show as &quot;Out of Stock&quot; until
+                    you upload keys.
                   </p>
                 </div>
               )}
@@ -655,7 +830,7 @@ export default function NewOfferPage() {
               <Button variant='ghost' onClick={() => goToStep('delivery-type')}>
                 ← Back
               </Button>
-              <Button 
+              <Button
                 onClick={() => goToStep('review')}
                 disabled={!canProceedFromPricing}
               >
@@ -664,11 +839,15 @@ export default function NewOfferPage() {
             </div>
           </div>
         );
-
+      }
 
       case 'review': {
-        const reviewVariant = variantsData?.variants.find((v) => v.id === wizardState.variantId);
-        const reviewProduct = catalogProductsData?.products.find((p) => p.id === wizardState.productId);
+        const reviewVariant = variantsData?.variants.find(
+          (v) => v.id === wizardState.variantId
+        );
+        const reviewProduct = catalogProductsData?.products.find(
+          (p) => p.id === wizardState.productId
+        );
 
         return (
           <div>
@@ -683,8 +862,14 @@ export default function NewOfferPage() {
 
             <Card className='p-6 space-y-6'>
               <div>
-                <h3 className='font-semibold text-foreground mb-2'>Delivery Type</h3>
-                <Badge>{wizardState.deliveryType === 'AUTO_KEY' ? 'Automatic Key Delivery' : 'Manual Fulfillment'}</Badge>
+                <h3 className='font-semibold text-foreground mb-2'>
+                  Delivery Type
+                </h3>
+                <Badge>
+                  {wizardState.deliveryType === 'AUTO_KEY'
+                    ? 'Automatic Key Delivery'
+                    : 'Manual Fulfillment'}
+                </Badge>
               </div>
 
               <Separator />
@@ -693,9 +878,13 @@ export default function NewOfferPage() {
                 <h3 className='font-semibold text-foreground mb-2'>Product</h3>
                 {reviewProduct && (
                   <div className='text-sm'>
-                    <p className='font-medium text-foreground'>{reviewProduct.name}</p>
+                    <p className='font-medium text-foreground'>
+                      {reviewProduct.name}
+                    </p>
                     {reviewProduct.description && (
-                      <p className='text-muted-foreground mt-1'>{reviewProduct.description}</p>
+                      <p className='text-muted-foreground mt-1'>
+                        {reviewProduct.description}
+                      </p>
                     )}
                   </div>
                 )}
@@ -709,23 +898,31 @@ export default function NewOfferPage() {
                   <dl className='space-y-2 text-sm'>
                     <div>
                       <dt className='text-muted-foreground'>Region:</dt>
-                      <dd className='text-foreground'>{reviewVariant.region}</dd>
+                      <dd className='text-foreground'>
+                        {reviewVariant.region}
+                      </dd>
                     </div>
                     <div>
                       <dt className='text-muted-foreground'>Duration:</dt>
                       <dd className='text-foreground'>
-                        {reviewVariant.durationDays ? `${reviewVariant.durationDays} days` : 'N/A'}
+                        {reviewVariant.durationDays
+                          ? `${reviewVariant.durationDays} days`
+                          : 'N/A'}
                       </dd>
                     </div>
                     {reviewVariant.edition && (
                       <div>
                         <dt className='text-muted-foreground'>Edition:</dt>
-                        <dd className='text-foreground'>{reviewVariant.edition}</dd>
+                        <dd className='text-foreground'>
+                          {reviewVariant.edition}
+                        </dd>
                       </div>
                     )}
                     <div>
                       <dt className='text-muted-foreground'>SKU:</dt>
-                      <dd className='text-foreground font-mono text-xs'>{reviewVariant.sku}</dd>
+                      <dd className='text-foreground font-mono text-xs'>
+                        {reviewVariant.sku}
+                      </dd>
                     </div>
                   </dl>
                 )}
@@ -738,14 +935,19 @@ export default function NewOfferPage() {
                 <dl className='space-y-2 text-sm'>
                   <div>
                     <dt className='text-muted-foreground'>Price:</dt>
-                    <dd className='text-foreground font-semibold'>{wizardState.currency} ${wizardState.priceAmount}</dd>
+                    <dd className='text-foreground font-semibold'>
+                      {wizardState.currency} ${wizardState.priceAmount}
+                    </dd>
                   </div>
-                  {wizardState.deliveryType === 'MANUAL' && wizardState.stockCount && (
-                    <div>
-                      <dt className='text-muted-foreground'>Stock Count:</dt>
-                      <dd className='text-foreground'>{wizardState.stockCount} units</dd>
-                    </div>
-                  )}
+                  {wizardState.deliveryType === 'MANUAL' &&
+                    wizardState.stockCount && (
+                      <div>
+                        <dt className='text-muted-foreground'>Stock Count:</dt>
+                        <dd className='text-foreground'>
+                          {wizardState.stockCount} units
+                        </dd>
+                      </div>
+                    )}
                 </dl>
               </div>
 
@@ -753,38 +955,53 @@ export default function NewOfferPage() {
                 <>
                   <Separator />
                   <div>
-                    <h3 className='font-semibold text-foreground mb-2'>Description</h3>
-                    <MarkdownPreview content={wizardState.descriptionMarkdown} />
+                    <h3 className='font-semibold text-foreground mb-2'>
+                      Description
+                    </h3>
+                    <MarkdownPreview
+                      content={wizardState.descriptionMarkdown}
+                    />
                   </div>
                 </>
               )}
 
-              {wizardState.deliveryType === 'MANUAL' && wizardState.deliveryInstructions && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className='font-semibold text-foreground mb-2'>Delivery Config</h3>
-                    <dl className='space-y-2 text-sm'>
-                      <div>
-                        <dt className='text-muted-foreground'>Instructions:</dt>
-                        <dd className='text-foreground'>{wizardState.deliveryInstructions}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </>
-              )}
+              {wizardState.deliveryType === 'MANUAL' &&
+                wizardState.deliveryInstructions && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className='font-semibold text-foreground mb-2'>
+                        Delivery Config
+                      </h3>
+                      <dl className='space-y-2 text-sm'>
+                        <div>
+                          <dt className='text-muted-foreground'>
+                            Instructions:
+                          </dt>
+                          <dd className='text-foreground'>
+                            {wizardState.deliveryInstructions}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </>
+                )}
 
               {wizardState.deliveryType === 'AUTO_KEY' && (
                 <>
                   <Separator />
                   <div className='p-4 bg-muted/50 rounded-lg border border-border'>
-                    <h3 className='font-semibold text-foreground mb-2'>Auto-Key Delivery</h3>
+                    <h3 className='font-semibold text-foreground mb-2'>
+                      Auto-Key Delivery
+                    </h3>
                     <p className='text-sm text-muted-foreground'>
-                      A key pool will be created automatically when you publish. 
-                      You can upload keys from the product management page after publishing.
+                      A key pool will be created automatically when you publish.
+                      You can upload keys from the product management page after
+                      publishing.
                     </p>
                     <p className='text-xs text-muted-foreground mt-2'>
-                      Note: The offer will show as &quot;Out of Stock&quot; until keys are uploaded.
+                      Note: The offer will show as &quot;Out of Stock&quot;
+                      until keys are uploaded.
                     </p>
                   </div>
                 </>
@@ -808,14 +1025,14 @@ export default function NewOfferPage() {
               <Button variant='ghost' onClick={() => goToStep('pricing')}>
                 ← Back
               </Button>
-              <Button 
-                variant='secondary' 
+              <Button
+                variant='secondary'
                 onClick={handleSaveDraft}
                 disabled={loading}
               >
                 Save as Draft
               </Button>
-              <Button 
+              <Button
                 onClick={handlePublish}
                 disabled={loading || !canProceedFromPricing}
               >
@@ -840,7 +1057,7 @@ export default function NewOfferPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink href='/products'>Products</BreadcrumbLink>
+              <BreadcrumbLink href='/products'>Offers</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
@@ -855,25 +1072,53 @@ export default function NewOfferPage() {
           {/* Progress indicator */}
           <div className='mb-8'>
             <div className='flex items-center justify-between'>
-              {(['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'] as Step[]).map((step, idx) => (
+              {(
+                [
+                  'category',
+                  'product',
+                  'variant',
+                  'delivery-type',
+                  'pricing',
+                  'review',
+                ] as Step[]
+              ).map((step, idx) => (
                 <div key={step} className='flex items-center'>
-                  <div 
+                  <div
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
-                      ${currentStep === step ? 'bg-ring text-background' : 
-                        ['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'].indexOf(currentStep) > idx
-                        ? 'bg-accent text-accent-foreground' 
-                        : 'bg-muted text-muted-foreground'}
+                      ${
+                        currentStep === step
+                          ? 'bg-ring text-background'
+                          : [
+                                'category',
+                                'product',
+                                'variant',
+                                'delivery-type',
+                                'pricing',
+                                'review',
+                              ].indexOf(currentStep) > idx
+                            ? 'bg-accent text-accent-foreground'
+                            : 'bg-muted text-muted-foreground'
+                      }
                     `}
                   >
                     {idx + 1}
                   </div>
                   {idx < 5 && (
-                    <div className={`w-12 h-1 mx-2 ${
-                      ['category', 'product', 'variant', 'delivery-type', 'pricing', 'review'].indexOf(currentStep) > idx
-                        ? 'bg-accent' 
-                        : 'bg-muted'
-                    }`} />
+                    <div
+                      className={`w-12 h-1 mx-2 ${
+                        [
+                          'category',
+                          'product',
+                          'variant',
+                          'delivery-type',
+                          'pricing',
+                          'review',
+                        ].indexOf(currentStep) > idx
+                          ? 'bg-accent'
+                          : 'bg-muted'
+                      }`}
+                    />
                   )}
                 </div>
               ))}
