@@ -12,6 +12,7 @@ import type {
   EditKeyResponse,
   RevealKeyResponse,
   InvalidateKeyResponse,
+  PlatformFeeConfig,
 } from '@workspace/contracts';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -233,4 +234,33 @@ export async function revealKey(
     throw new Error(error.message || 'Failed to reveal key');
   }
   return response.json();
+}
+
+// ============================================
+// PLATFORM SETTINGS API HELPERS
+// ============================================
+
+export async function getPlatformFee(): Promise<PlatformFeeConfig> {
+  const response = await fetch(`${API_URL}/settings/platform-fee`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch platform fee');
+  }
+  return response.json();
+}
+
+/**
+ * Calculate commission for pricing preview
+ * Uses integer math to avoid floating point issues
+ */
+export function calculateCommission(sellerPriceCents: number, feeBps: number) {
+  const feeAmountCents = Math.round((sellerPriceCents * feeBps) / 10000);
+  const buyerTotalCents = sellerPriceCents + feeAmountCents;
+  
+  return {
+    sellerPriceCents,
+    feeAmountCents,
+    buyerTotalCents,
+  };
 }

@@ -10,3 +10,4 @@ export * from './catalog.schema';
 export * from './offer.schema';
 export * from './key-pool.schema';
 export * from './order.schema';
+export * from './settings.schema';

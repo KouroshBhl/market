@@ -308,3 +308,18 @@ model Order {
   @@index([status])
   @@map("orders")
 }
+
+// ============================================
+// PLATFORM SETTINGS
+// ============================================
+
+// Platform-wide configurable settings (single-row table)
+// Enforced as single-row via service logic and seed
+model PlatformSettings {
+  id             String   @id @default(uuid())
+  platformFeeBps Int      @map("platform_fee_bps") // Basis points (300 = 3.00%)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}

@@ -12,6 +12,7 @@ import { OpenApiModule } from './openapi/openapi.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { KeyPoolsModule } from './key-pools/key-pools.module';
 import { OrdersModule } from './orders/orders.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { OrdersModule } from './orders/orders.module';
     OffersModule,
     KeyPoolsModule,
     OrdersModule,
+    SettingsModule,
     OpenApiModule,
   ],
 })

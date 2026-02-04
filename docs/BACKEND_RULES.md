@@ -7,6 +7,7 @@ Single source of truth for API conventions, validation, database operations, and
 ## API Design Rules
 
 ### RESTful Conventions
+
 ```
 GET    /resources          → List
 GET    /resources/:id      → Get one
@@ -17,6 +18,7 @@ POST   /resources/:id/action → Custom action (e.g., /publish)
 ```
 
 ### Response Format
+
 ```typescript
 // Success
 { data: T }
@@ -32,21 +34,23 @@ POST   /resources/:id/action → Custom action (e.g., /publish)
 ```
 
 ### HTTP Status Codes
-| Code | Usage |
-|------|-------|
-| 200 | Success (GET, PATCH, actions) |
-| 201 | Created (POST) |
-| 400 | Validation error |
-| 401 | Unauthorized |
-| 403 | Forbidden |
-| 404 | Not found |
-| 500 | Server error |
+
+| Code | Usage                         |
+| ---- | ----------------------------- |
+| 200  | Success (GET, PATCH, actions) |
+| 201  | Created (POST)                |
+| 400  | Validation error              |
+| 401  | Unauthorized                  |
+| 403  | Forbidden                     |
+| 404  | Not found                     |
+| 500  | Server error                  |
 
 ---
 
 ## Validation Rules (Zod Only)
 
 ### Request Validation
+
 ```typescript
 // In controller
 @Post()
@@ -57,24 +61,29 @@ async create(@Body() body: unknown) {
 ```
 
 ### FORBIDDEN
+
 - class-validator decorators
 - class-transformer
 - Manual validation logic
 
 ### Error Handling
+
 ```typescript
 try {
   const validated = schema.parse(body);
 } catch (error) {
   if (error instanceof ZodError) {
-    throw new HttpException({
-      statusCode: 400,
-      message: 'Validation failed',
-      errors: error.errors.map(e => ({
-        path: e.path.join('.'),
-        message: e.message,
-      })),
-    }, HttpStatus.BAD_REQUEST);
+    throw new HttpException(
+      {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: error.errors.map((e) => ({
+          path: e.path.join('.'),
+          message: e.message,
+        })),
+      },
+      HttpStatus.BAD_REQUEST
+    );
   }
   throw error;
 }
@@ -85,6 +94,7 @@ try {
 ## Database Rules (Prisma)
 
 ### Money Handling
+
 ```typescript
 // ✅ Store as Int (cents)
 priceAmount Int  // 1999 = $19.99
@@ -93,7 +103,33 @@ priceAmount Int  // 1999 = $19.99
 price Float
 ```
 
+### Single-Row Tables
+
+```typescript
+// ✅ Typed single-row table (enforced via service logic)
+model PlatformSettings {
+  id             String   @id
+  platformFeeBps Int      // Basis points
+  createdAt      DateTime
+  updatedAt      DateTime
+}
+
+// Service enforces single-row:
+const settings = await prisma.platformSettings.findFirst();
+if (!settings) {
+  // Auto-create default
+  settings = await prisma.platformSettings.create({ ... });
+}
+
+// ❌ NEVER use key-value pattern for typed settings
+model Settings {
+  settingKey   String  @unique  // Bad: mixes patterns
+  settingValue String
+}
+```
+
 ### Date Handling
+
 ```typescript
 // In Prisma
 createdAt DateTime @default(now())
@@ -107,21 +143,24 @@ createdAt DateTime @default(now())
 ```
 
 ### UUID Generation
+
 ```prisma
 id String @id @default(uuid())
 ```
 
 ### Column Mapping
+
 ```prisma
 model Product {
   sellerId  String   @map("seller_id")
   createdAt DateTime @map("created_at")
-  
+
   @@map("products")
 }
 ```
 
 ### Transactions
+
 ```typescript
 // For multi-table operations
 await prisma.$transaction(async (tx) => {
@@ -135,25 +174,25 @@ await prisma.$transaction(async (tx) => {
 ## Service Layer Rules
 
 ### Structure
+
 ```typescript
 @Injectable()
 export class ProductsService {
-  constructor(
-    private readonly categoriesService: CategoriesService,
-  ) {}
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   // Public methods
-  async findAll(): Promise<Product[]> { }
-  async findOne(id: string): Promise<Product> { }
-  async create(data: CreateDto): Promise<Product> { }
-  
+  async findAll(): Promise<Product[]> {}
+  async findOne(id: string): Promise<Product> {}
+  async create(data: CreateDto): Promise<Product> {}
+
   // Private helpers
-  private mapToContract(product: PrismaProduct): Product { }
-  private validateDeliveryConfig(data: any): void { }
+  private mapToContract(product: PrismaProduct): Product {}
+  private validateDeliveryConfig(data: any): void {}
 }
 ```
 
 ### Validation Placement
+
 - **Input validation**: In controller (Zod parse)
 - **Business validation**: In service (category is child, delivery config matches type)
 - **Database constraints**: In Prisma schema (unique, foreign keys)
@@ -163,6 +202,7 @@ export class ProductsService {
 ## Controller Rules
 
 ### Swagger Documentation Required
+
 ```typescript
 @ApiTags('Products')
 @Controller('products')
@@ -181,7 +221,15 @@ export class ProductsController {
 }
 ```
 
+**Platform Settings Endpoints:**
+
+- Must use Swagger decorators: `@ApiTags`, `@ApiOperation`, `@ApiResponse`
+- Must use Zod validation for request bodies
+- Money calculations as integer cents; fees as basis points
+- Range validation enforced in both contracts and service
+
 ### Parameter Decorators
+
 ```typescript
 @Get(':id')
 @ApiParam({ name: 'id', description: 'Product ID' })
@@ -197,6 +245,7 @@ findAll(@Query('categoryId') categoryId?: string) { }
 ## Migration Rules
 
 ### Development
+
 ```bash
 # Quick iteration (no migration file)
 pnpm db:push
@@ -204,6 +253,7 @@ pnpm db:generate
 ```
 
 ### Production
+
 ```bash
 # Create migration file
 pnpm prisma migrate dev --name add_feature
@@ -213,6 +263,7 @@ pnpm prisma migrate deploy
 ```
 
 ### Migration Best Practices
+
 1. **Test on copy of production data** before deploying
 2. **Make migrations backward compatible** when possible
    - Add columns as nullable first
@@ -222,6 +273,7 @@ pnpm prisma migrate deploy
 4. **Keep migrations small and focused**
 
 ### Rollback Strategy
+
 ```bash
 # Mark failed migration as rolled back
 pnpm prisma migrate resolve --rolled-back MIGRATION_NAME
@@ -234,22 +286,26 @@ pnpm prisma migrate resolve --rolled-back MIGRATION_NAME
 ## Security Rules
 
 ### Key Encryption
+
 - Use AES-256-GCM for sensitive data
 - Store encryption key in environment variable
 - Never log or return raw keys in list endpoints
 
 ### Row-Level Locking
+
 ```sql
 -- For atomic operations (e.g., key delivery)
 SELECT ... FOR UPDATE SKIP LOCKED
 ```
 
 ### Access Control
+
 - Verify sellerId matches authenticated user
 - Verify buyerId for order access
 - Use guards/middleware for authentication
 
 ### FORBIDDEN
+
 - Committing `.env` files
 - Logging sensitive data
 - Returning raw keys in list endpoints
@@ -260,6 +316,7 @@ SELECT ... FOR UPDATE SKIP LOCKED
 ## Error Handling
 
 ### Standard Pattern
+
 ```typescript
 // Not found
 throw new NotFoundException(`Product ${id} not found`);
@@ -272,6 +329,7 @@ throw new ForbiddenException('Not authorized to access this resource');
 ```
 
 ### Custom Error Messages
+
 - Be specific: "Variant WOW-GT-EU-30D does not support auto-key delivery"
 - Include IDs when helpful
 - Never expose internal errors to clients
@@ -281,6 +339,7 @@ throw new ForbiddenException('Not authorized to access this resource');
 ## Environment Validation
 
 ### Schema
+
 ```typescript
 // apps/api/src/config/env.schema.ts
 import { z } from 'zod';
@@ -295,6 +354,7 @@ export const envSchema = z.object({
 ```
 
 ### Usage
+
 ```typescript
 // Fails fast on startup if invalid
 const env = envSchema.parse(process.env);
@@ -305,6 +365,7 @@ const env = envSchema.parse(process.env);
 ## Module Organization
 
 ### Feature Module Structure
+
 ```
 src/
 ├── products/
@@ -320,6 +381,7 @@ src/
 ```
 
 ### Module Dependencies
+
 ```typescript
 @Module({
   imports: [CategoriesModule],
@@ -335,19 +397,23 @@ export class ProductsModule {}
 ## Testing Strategy
 
 ### Contract Tests
+
 ```bash
 pnpm test:contracts
 ```
+
 - All contracts registered
 - No duplicate paths/methods
 - OpenAPI generates successfully
 
 ### Unit Tests
+
 - Service methods
 - Validation logic
 - Business rules
 
 ### Integration Tests
+
 - Full request/response cycle
 - Database operations
 - Error scenarios
@@ -357,6 +423,7 @@ pnpm test:contracts
 ## Quick Reference
 
 ### DO
+
 - Use Zod for all validation
 - Store money as Int (cents)
 - Return dates as ISO strings
@@ -366,6 +433,7 @@ pnpm test:contracts
 - Use meaningful error messages
 
 ### DO NOT
+
 - Use class-validator or class-transformer
 - Use Float for money
 - Return Date objects to frontend

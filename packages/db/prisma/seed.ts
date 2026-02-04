@@ -278,6 +278,43 @@ async function main() {
     console.log(`  ✓ ${variant.sku} (${deliveryMethods.join(', ')})`);
   }
 
+  // Create platform settings (single-row table)
+  console.log('\n⚙️  Creating platform settings...');
+  
+  // Clean up old key-value pattern rows if they exist
+  try {
+    const oldRows = await prisma.platformSettings.findMany();
+    if (oldRows.length > 1) {
+      console.log(`  ⚠️  Found ${oldRows.length} settings rows. Cleaning up...`);
+      // Delete all existing rows
+      await prisma.platformSettings.deleteMany({});
+    }
+  } catch (error) {
+    // Ignore errors during cleanup (e.g., if column doesn't exist yet)
+  }
+
+  // Ensure exactly one settings row exists
+  const existingSettings = await prisma.platformSettings.findFirst();
+  
+  if (existingSettings) {
+    // Update existing row
+    await prisma.platformSettings.update({
+      where: { id: existingSettings.id },
+      data: {
+        platformFeeBps: 300, // 3.00%
+      },
+    });
+    console.log('  ✓ Platform fee updated: 300 bps (3.00%)');
+  } else {
+    // Create the single settings row
+    await prisma.platformSettings.create({
+      data: {
+        platformFeeBps: 300, // 3.00%
+      },
+    });
+    console.log('  ✓ Platform fee created: 300 bps (3.00%)');
+  }
+
   // Verify counts
   const parentCount = await prisma.category.count({
     where: { parentId: null },
@@ -293,7 +330,8 @@ async function main() {
   console.log(`   • ${childCount} child categories`);
   console.log(`   • ${productCount} catalog products`);
   console.log(`   • ${variantCount} catalog variants`);
-  console.log(`   • ${parentCount + childCount} total categories\n`);
+  console.log(`   • ${parentCount + childCount} total categories`);
+  console.log(`   • Platform fee configured: 3%\n`);
 }
 
 main()
