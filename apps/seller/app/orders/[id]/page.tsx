@@ -1,8 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Badge, Card, Alert, AlertDescription, Label, Select } from '@workspace/ui';
-import { ArrowLeft, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Button, Badge, Card, Alert, AlertDescription, Label, Select, useToast, SidebarTrigger, Separator, Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from '@workspace/ui';
+import { ArrowLeft, CheckCircle, Clock, AlertCircle, Package, CircleCheck, CircleX } from 'lucide-react';
 import Link from 'next/link';
 import { use, useState } from 'react';
 
@@ -23,6 +23,7 @@ interface TeamMember {
 interface OrderDetails {
   order: {
     id: string;
+    displayCode: string;
     buyerId: string;
     sellerId: string;
     offerId: string;
@@ -51,6 +52,13 @@ interface OrderDetails {
     deliveryType: string;
     deliveryInstructions: string | null;
     estimatedDeliveryMinutes: number | null;
+    variant: {
+      sku: string;
+      region: string;
+      product: {
+        name: string;
+      };
+    };
   };
   requirementTemplate: {
     id: string;
@@ -77,6 +85,7 @@ export default function OrderDetailPage({
   const orderId = resolvedParams.id;
   const queryClient = useQueryClient();
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
+  const { toast } = useToast();
 
   const { data: orderData, isLoading, error } = useQuery({
     queryKey: ['seller-order', orderId],
@@ -139,6 +148,28 @@ export default function OrderDetailPage({
       });
       // Invalidate list to refresh
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      // Success toast
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleCheck className="size-4" />
+            <span>Order claimed</span>
+          </div>
+        ),
+        description: 'You have successfully claimed this order.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleX className="size-4" />
+            <span>Failed to claim order</span>
+          </div>
+        ),
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -183,6 +214,28 @@ export default function OrderDetailPage({
       // Invalidate list to refresh
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
       setSelectedAssignee('');
+      // Success toast
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleCheck className="size-4" />
+            <span>Order reassigned</span>
+          </div>
+        ),
+        description: `Order reassigned to ${member?.user.name || member?.user.email}`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleX className="size-4" />
+            <span>Failed to reassign order</span>
+          </div>
+        ),
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -216,6 +269,28 @@ export default function OrderDetailPage({
       });
       // Invalidate list to refresh
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+      // Success toast
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleCheck className="size-4" />
+            <span>Order fulfilled</span>
+          </div>
+        ),
+        description: 'Order has been marked as fulfilled.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: (
+          <div className="flex items-center gap-2">
+            <CircleX className="size-4" />
+            <span>Failed to fulfill order</span>
+          </div>
+        ),
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -289,20 +364,58 @@ export default function OrderDetailPage({
   });
 
   return (
-    <div className="flex flex-col gap-6 p-8">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/orders">
-            <ArrowLeft className="mr-2 size-4" />
-            Back
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-foreground text-2xl font-bold">Order Details</h1>
-          <p className="text-muted-foreground text-sm">Order ID: {order.id}</p>
-        </div>
-        <div>{getStatusBadge(order.status)}</div>
-      </div>
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/orders">Orders</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Order Details</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </header>
+
+      {/* Content */}
+      <div className="flex flex-1 flex-col gap-6 overflow-auto p-6">
+        {/* Product Header Card */}
+        <Card className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex size-12 items-center justify-center rounded-lg bg-accent">
+              <Package className="size-6 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-foreground text-2xl font-bold">{offer.variant.product.name}</h1>
+              <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-sm">
+                <span>{offer.variant.sku}</span>
+                <span>•</span>
+                <span>{offer.variant.region}</span>
+                <span>•</span>
+                <Badge variant="outline">{offer.deliveryType}</Badge>
+                {offer.estimatedDeliveryMinutes && (
+                  <>
+                    <span>•</span>
+                    <span>
+                      SLA: {offer.estimatedDeliveryMinutes < 60
+                        ? `${offer.estimatedDeliveryMinutes}m`
+                        : `${Math.round(offer.estimatedDeliveryMinutes / 60)}h`}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-muted-foreground mt-2 text-xs">Order ID: {order.displayCode}</p>
+            </div>
+            <div>{getStatusBadge(order.status)}</div>
+          </div>
+        </Card>
 
       {/* Status Timeline */}
       <Card className="p-6">
@@ -581,6 +694,7 @@ export default function OrderDetailPage({
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }

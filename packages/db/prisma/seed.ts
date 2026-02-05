@@ -1,6 +1,20 @@
 import { PrismaClient } from '@prisma/client';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
+
+// Generate order display code (same logic as backend)
+function generateOrderDisplayCode(): string {
+  const BASE32_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const bytes = randomBytes(10);
+  let code = '';
+  
+  for (let i = 0; i < 10; i++) {
+    code += BASE32_ALPHABET[bytes[i] % BASE32_ALPHABET.length];
+  }
+  
+  return `ORD_${code}`;
+}
 
 // Parent categories
 const PARENTS = [
@@ -782,16 +796,80 @@ async function main() {
   console.log('  ✓ Seller team: 1 OWNER + 2 STAFF');
 
   // ============================================
+  // SEED SAMPLE OFFERS (for testing Orders UI)
+  // ============================================
+  console.log('\n🏪 Seeding sample offers...');
+
+  const variants = await prisma.catalogVariant.findMany({
+    take: 3,
+  });
+
+  const offers = [];
+  
+  if (variants.length > 0) {
+    // Offer 1: MANUAL delivery (for manual fulfillment testing)
+    const manualOffer = await prisma.offer.upsert({
+      where: { id: 'off00000-0000-0000-0000-000000000001' },
+      update: {},
+      create: {
+        id: 'off00000-0000-0000-0000-000000000001',
+        sellerId: demoSellerId,
+        variantId: variants[0].id,
+        status: 'active',
+        deliveryType: 'MANUAL',
+        priceAmount: 1999, // $19.99
+        currency: 'USD',
+        stockCount: 100,
+        deliveryInstructions: 'You will receive the game time code within 24 hours via email.',
+        estimatedDeliveryMinutes: 24 * 60, // 24 hours
+        publishedAt: new Date(),
+      },
+    });
+    offers.push(manualOffer);
+    console.log('  ✓ MANUAL offer');
+
+    // Offer 2: AUTO_KEY delivery (if we have auto-key variants)
+    const autoVariant = await prisma.catalogVariant.findFirst({
+      where: { supportsAutoKey: true },
+    });
+    
+    if (autoVariant) {
+      // Create offer first (KeyPool has 1:1 relation with Offer)
+      const autoOffer = await prisma.offer.upsert({
+        where: { id: 'off00000-0000-0000-0000-000000000002' },
+        update: {},
+        create: {
+          id: 'off00000-0000-0000-0000-000000000002',
+          sellerId: demoSellerId,
+          variantId: autoVariant.id,
+          status: 'active',
+          deliveryType: 'AUTO_KEY',
+          priceAmount: 2499, // $24.99
+          currency: 'USD',
+          publishedAt: new Date(),
+        },
+      });
+      offers.push(autoOffer);
+
+      // Create key pool for the offer (keys not seeded for simplicity)
+      await prisma.keyPool.upsert({
+        where: { offerId: autoOffer.id },
+        update: {},
+        create: {
+          offerId: autoOffer.id,
+          sellerId: demoSellerId,
+          isActive: true,
+        },
+      });
+      
+      console.log('  ✓ AUTO_KEY offer (with key pool)');
+    }
+  }
+
+  // ============================================
   // SEED SAMPLE ORDERS (for testing Orders UI)
   // ============================================
   console.log('\n📦 Seeding sample orders...');
-
-  // Get some offers to create orders for
-  const offers = await prisma.offer.findMany({
-    where: { status: 'active' },
-    take: 3,
-    include: { variant: true },
-  });
 
   if (offers.length > 0) {
     // Order 1: PAID manual order that's OVERDUE (created 2 days ago, 1h SLA)
@@ -799,10 +877,11 @@ async function main() {
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     
     await prisma.order.upsert({
-      where: { id: 'o0000000-0000-0000-0000-000000000001' },
+      where: { id: '10000000-0000-0000-0000-000000000001' },
       update: {},
       create: {
-        id: 'o0000000-0000-0000-0000-000000000001',
+        id: '10000000-0000-0000-0000-000000000001',
+        displayCode: 'ORD_2A3B4C5D6E',
         buyerId: demoBuyerId,
         sellerId: manualOffer.sellerId,
         offerId: manualOffer.id,
@@ -827,10 +906,11 @@ async function main() {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     
     await prisma.order.upsert({
-      where: { id: 'o0000000-0000-0000-0000-000000000002' },
+      where: { id: '20000000-0000-0000-0000-000000000002' },
       update: {},
       create: {
-        id: 'o0000000-0000-0000-0000-000000000002',
+        id: '20000000-0000-0000-0000-000000000002',
+        displayCode: 'ORD_7F8G9H2J3K',
         buyerId: demoBuyerId,
         sellerId: autoOffer.sellerId,
         offerId: autoOffer.id,
@@ -851,10 +931,11 @@ async function main() {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     
     await prisma.order.upsert({
-      where: { id: 'o0000000-0000-0000-0000-000000000003' },
+      where: { id: '30000000-0000-0000-0000-000000000003' },
       update: {},
       create: {
-        id: 'o0000000-0000-0000-0000-000000000003',
+        id: '30000000-0000-0000-0000-000000000003',
+        displayCode: 'ORD_4L5M6N7P8Q',
         buyerId: demoBuyerId,
         sellerId: fulfilledOffer.sellerId,
         offerId: fulfilledOffer.id,
@@ -876,10 +957,11 @@ async function main() {
       const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000);
       
       await prisma.order.upsert({
-        where: { id: 'o0000000-0000-0000-0000-000000000004' },
+        where: { id: '40000000-0000-0000-0000-000000000004' },
         update: {},
         create: {
-          id: 'o0000000-0000-0000-0000-000000000004',
+          id: '40000000-0000-0000-0000-000000000004',
+          displayCode: 'ORD_9R2S3T4V5W',
           buyerId: demoBuyerId,
           sellerId: manualOffer.sellerId,
           offerId: manualOffer.id,
@@ -914,6 +996,7 @@ async function main() {
   const variantCount = await prisma.catalogVariant.count();
   const templateCount = await prisma.requirementTemplate.count();
   const fieldCount = await prisma.requirementField.count();
+  const offerCount = await prisma.offer.count();
   const orderCount = await prisma.order.count();
 
   console.log('\n✅ Seeding complete!');
@@ -921,6 +1004,7 @@ async function main() {
   console.log(`   • ${childCount} child categories`);
   console.log(`   • ${productCount} catalog products`);
   console.log(`   • ${variantCount} catalog variants`);
+  console.log(`   • ${offerCount} offers (MANUAL + AUTO_KEY)`);
   console.log(`   • Platform fee configured: 3%`);
   console.log(`   • ${templateCount} requirement templates`);
   console.log(`   • ${fieldCount} requirement fields`);

@@ -21,6 +21,7 @@ export type WorkState = z.infer<typeof WorkStateSchema>;
 // Base Order
 export const OrderSchema = z.object({
   id: z.string().uuid(),
+  displayCode: z.string(), // Public display identifier (e.g., "ORD_A1B2C3D4E5")
   buyerId: z.string().uuid(),
   sellerId: z.string().uuid(),
   offerId: z.string().uuid(),
@@ -198,6 +199,13 @@ export type GetSellerOrdersQuery = z.infer<typeof GetSellerOrdersQuerySchema>;
 export const GetSellerOrdersCursorResponseSchema = z.object({
   items: z.array(SellerOrderSchema),
   nextCursor: z.string().nullable(),
+  counts: z.object({
+    all: z.number().int(),
+    unassigned: z.number().int(),
+    needsFulfillment: z.number().int(),
+    fulfilled: z.number().int(),
+    overdue: z.number().int(),
+  }),
 });
 
 export type GetSellerOrdersCursorResponse = z.infer<typeof GetSellerOrdersCursorResponseSchema>;

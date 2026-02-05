@@ -1,9 +1,10 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Badge, Button } from '@workspace/ui';
-import { AlertCircle } from 'lucide-react';
+import { Badge } from '@workspace/ui';
+import { AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED';
 export type WorkState = 'UNASSIGNED' | 'IN_PROGRESS' | 'DONE' | null;
@@ -68,9 +69,12 @@ export const columns: ColumnDef<OrderRow>[] = [
       const region = row.original.offer.variant.region;
       
       return (
-        <Link href={`/orders/${row.original.id}`} className="block hover:underline">
-          <div className="text-foreground font-medium">{product}</div>
-          <div className="text-muted-foreground text-xs">
+        <Link 
+          href={`/orders/${row.original.id}`} 
+          className="block cursor-pointer font-medium text-foreground hover:underline"
+        >
+          <div>{product}</div>
+          <div className="text-muted-foreground text-xs font-normal">
             {sku} • {region}
           </div>
         </Link>
@@ -80,14 +84,16 @@ export const columns: ColumnDef<OrderRow>[] = [
   {
     accessorKey: 'status',
     header: ({ column }) => {
+      const isSorted = column.getIsSorted();
       return (
         <button
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          className="flex items-center gap-1 hover:text-foreground"
+          className="flex items-center gap-1 hover:text-foreground transition-colors"
         >
           Status
-          {column.getIsSorted() === 'asc' && <span>↑</span>}
-          {column.getIsSorted() === 'desc' && <span>↓</span>}
+          {isSorted === 'asc' && <ArrowUp className="size-4" />}
+          {isSorted === 'desc' && <ArrowDown className="size-4" />}
+          {!isSorted && <ArrowUpDown className="size-4 opacity-50" />}
         </button>
       );
     },
@@ -172,14 +178,16 @@ export const columns: ColumnDef<OrderRow>[] = [
   {
     accessorKey: 'buyerTotalAmount',
     header: ({ column }) => {
+      const isSorted = column.getIsSorted();
       return (
         <button
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          className="flex items-center gap-1 hover:text-foreground"
+          className="flex items-center gap-1 hover:text-foreground transition-colors"
         >
           Buyer Paid
-          {column.getIsSorted() === 'asc' && <span>↑</span>}
-          {column.getIsSorted() === 'desc' && <span>↓</span>}
+          {isSorted === 'asc' && <ArrowUp className="size-4" />}
+          {isSorted === 'desc' && <ArrowDown className="size-4" />}
+          {!isSorted && <ArrowUpDown className="size-4 opacity-50" />}
         </button>
       );
     },
@@ -205,14 +213,16 @@ export const columns: ColumnDef<OrderRow>[] = [
   {
     accessorKey: 'paidAt',
     header: ({ column }) => {
+      const isSorted = column.getIsSorted();
       return (
         <button
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          className="flex items-center gap-1 hover:text-foreground"
+          className="flex items-center gap-1 hover:text-foreground transition-colors"
         >
           Paid At
-          {column.getIsSorted() === 'asc' && <span>↑</span>}
-          {column.getIsSorted() === 'desc' && <span>↓</span>}
+          {isSorted === 'asc' && <ArrowUp className="size-4" />}
+          {isSorted === 'desc' && <ArrowDown className="size-4" />}
+          {!isSorted && <ArrowUpDown className="size-4 opacity-50" />}
         </button>
       );
     },

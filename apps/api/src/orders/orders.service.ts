@@ -10,6 +10,7 @@ import { KeyPoolsService } from '../key-pools/key-pools.service';
 import { RequirementsService } from '../requirements/requirements.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { SellerTeamService } from '../seller-team/seller-team.service';
+import { generateOrderDisplayCode } from './order-display-code.util';
 import type {
   Order,
   PayOrderResponse,
@@ -115,22 +116,50 @@ export class OrdersService {
     const feeAmount = Math.round((basePriceAmount * platformFeeBps) / 10000);
     const buyerTotalAmount = basePriceAmount + feeAmount;
 
-    // Create order with price snapshots
-    const order = await prisma.order.create({
-      data: {
-        buyerId,
-        sellerId: offer.sellerId,
-        offerId,
-        status: 'PENDING_PAYMENT',
-        basePriceAmount,
-        platformFeeBpsSnapshot: platformFeeBps,
-        feeAmount,
-        buyerTotalAmount,
-        currency: offer.currency,
-        requirementsPayload: storedPayload as any,
-        requirementsPayloadEncrypted: encryptedPayload,
-      },
-    });
+    // Generate unique display code with retry logic
+    let order;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+      try {
+        const displayCode = generateOrderDisplayCode();
+        
+        order = await prisma.order.create({
+          data: {
+            displayCode,
+            buyerId,
+            sellerId: offer.sellerId,
+            offerId,
+            status: 'PENDING_PAYMENT',
+            basePriceAmount,
+            platformFeeBpsSnapshot: platformFeeBps,
+            feeAmount,
+            buyerTotalAmount,
+            currency: offer.currency,
+            requirementsPayload: storedPayload as any,
+            requirementsPayloadEncrypted: encryptedPayload,
+          },
+        });
+        break; // Success - exit loop
+      } catch (error: any) {
+        // Check if it's a unique constraint violation on displayCode
+        if (error.code === 'P2002' && error.meta?.target?.includes('display_code')) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            throw new Error('Failed to generate unique order display code after multiple attempts');
+          }
+          // Retry with new displayCode
+          continue;
+        }
+        // Other errors - rethrow
+        throw error;
+      }
+    }
+
+    if (!order) {
+      throw new Error('Failed to create order');
+    }
 
     return this.mapOrderToContract(order);
   }
@@ -506,6 +535,7 @@ export class OrdersService {
   /**
    * Get seller's orders (cursor-based pagination with sorting and filtering)
    * Includes computed fields: isOverdue, slaDueAt, assignee info
+   * Returns counts for all tabs
    */
   async getSellerOrders(
     sellerId: string,
@@ -516,6 +546,13 @@ export class OrdersService {
   ): Promise<{
     items: any[];
     nextCursor: string | null;
+    counts: {
+      all: number;
+      unassigned: number;
+      needsFulfillment: number;
+      fulfilled: number;
+      overdue: number;
+    };
   }> {
     // Parse cursor (base64 encoded order ID)
     let cursorId: string | undefined;
@@ -634,6 +671,35 @@ export class OrdersService {
       ? Buffer.from(items[items.length - 1].id).toString('base64')
       : null;
 
+    // Calculate tab counts (do NOT include cursor filtering)
+    const allOrders = await prisma.order.findMany({
+      where: { sellerId },
+      include: {
+        offer: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Compute counts per tab
+    const counts = {
+      all: allOrders.length,
+      unassigned: allOrders.filter((o) => !o.assignedToUserId && o.status === 'PAID').length,
+      needsFulfillment: allOrders.filter((o) => o.status === 'PAID').length,
+      fulfilled: allOrders.filter((o) => o.status === 'FULFILLED').length,
+      overdue: allOrders.filter((o) => {
+        if (o.status !== 'PAID' || o.offer.deliveryType !== 'MANUAL') return false;
+        const { isOverdue } = this.computeOverdueStatus(o, o.offer);
+        return isOverdue;
+      }).length,
+    };
+
     return {
       items: items.map((order) => {
         const { isOverdue, slaDueAt } = this.computeOverdueStatus(
@@ -670,6 +736,7 @@ export class OrdersService {
         };
       }),
       nextCursor,
+      counts,
     };
   }
 
@@ -713,6 +780,7 @@ export class OrdersService {
           include: {
             variant: {
               include: {
+                product: true, // Include product for header
                 requirementTemplate: {
                   include: {
                     fields: {
@@ -763,7 +831,14 @@ export class OrdersService {
         deliveryType: order.offer.deliveryType,
         deliveryInstructions: order.offer.deliveryInstructions,
         estimatedDeliveryMinutes: order.offer.estimatedDeliveryMinutes,
-      },
+        variant: {
+          sku: (order.offer as any).variant.sku,
+          region: (order.offer as any).variant.region,
+          product: {
+            name: (order.offer as any).variant.product.name,
+          },
+        },
+      } as any,
       requirementTemplate: template
         ? {
             id: template.id,
@@ -807,6 +882,7 @@ export class OrdersService {
   private mapOrderToContract(order: any): Order {
     return {
       id: order.id,
+      displayCode: order.displayCode,
       buyerId: order.buyerId,
       sellerId: order.sellerId,
       offerId: order.offerId,

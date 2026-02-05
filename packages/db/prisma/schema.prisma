@@ -283,6 +283,7 @@ model KeyAuditLog {
 // Order - Full order lifecycle with admin assignment
 model Order {
   id                            String           @id @default(uuid())
+  displayCode                   String           @unique @map("display_code") // Public order identifier (e.g., "ORD_A1B2C3D4E5")
   buyerId                       String           @map("buyer_id") // Future: FK to User
   sellerId                      String           @map("seller_id") // Denormalized for faster queries
   offerId                       String           @map("offer_id")
