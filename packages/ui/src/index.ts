@@ -13,6 +13,7 @@ export * from './components/nav-user';
 export * from './components/team-switcher';
 export * from './components/breadcrumb';
 export * from './components/avatar';
+export * from './components/dialog';
 export * from './components/dropdown-menu';
 export * from './components/sheet';
 export * from './components/skeleton';

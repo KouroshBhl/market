@@ -177,6 +177,54 @@ export async function apiSellerSetup(displayName: string) {
 }
 
 // ============================================
+// Password Management
+// ============================================
+
+export async function apiSetPassword(newPassword: string): Promise<{ ok: true }> {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const res = await fetch(`${API_URL}/auth/set-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ newPassword }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Failed to set password');
+  }
+
+  return res.json();
+}
+
+export async function apiChangePassword(oldPassword: string, newPassword: string): Promise<{ ok: true }> {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const res = await fetch(`${API_URL}/auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ oldPassword, newPassword }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Failed to change password');
+  }
+
+  return res.json();
+}
+
+// ============================================
 // Authed fetch helper (for API client)
 // ============================================
 

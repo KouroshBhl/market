@@ -155,6 +155,7 @@ export class AuthService {
       role: user.role as AuthUser['role'],
       sellerId: user.sellerProfile?.id ?? null,
       displayName: user.sellerProfile?.displayName ?? null,
+      hasPassword: !!user.passwordHash,
     };
   }
 
@@ -279,6 +280,63 @@ export class AuthService {
   }
 
   // ============================================
+  // SET PASSWORD (Google-only users)
+  // ============================================
+
+  async setPassword(userId: string, newPassword: string): Promise<{ ok: true }> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.passwordHash) {
+      throw new ConflictException('Password already set. Use change-password instead.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Revoke all existing refresh tokens to force re-login
+    await this.revokeAllRefreshTokens(userId);
+
+    return { ok: true };
+  }
+
+  // ============================================
+  // CHANGE PASSWORD
+  // ============================================
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{ ok: true }> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new ConflictException('No password set. Use set-password instead.');
+    }
+
+    const valid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Revoke all existing refresh tokens to force re-login
+    await this.revokeAllRefreshTokens(userId);
+
+    return { ok: true };
+  }
+
+  // ============================================
   // TOKEN VERIFICATION (used by guard)
   // ============================================
 
@@ -328,5 +386,12 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private async revokeAllRefreshTokens(userId: string): Promise<void> {
+    await prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 }

@@ -49,6 +49,49 @@ export const ExchangeCodeRequestSchema = z
 export type ExchangeCodeRequest = z.infer<typeof ExchangeCodeRequestSchema>;
 
 // ============================================
+// Password Policy
+// ============================================
+
+const passwordPolicy = z
+  .string()
+  .min(10, 'Password must be at least 10 characters')
+  .refine((val) => /[a-zA-Z]/.test(val), {
+    message: 'Password must include at least 1 letter',
+  })
+  .refine((val) => /[0-9]/.test(val), {
+    message: 'Password must include at least 1 number',
+  });
+
+// ============================================
+// Password Management Schemas
+// ============================================
+
+export const SetPasswordRequestSchema = z
+  .object({
+    newPassword: passwordPolicy,
+  })
+  .openapi('SetPasswordRequest');
+
+export type SetPasswordRequest = z.infer<typeof SetPasswordRequestSchema>;
+
+export const ChangePasswordRequestSchema = z
+  .object({
+    oldPassword: z.string().min(1, 'Current password is required'),
+    newPassword: passwordPolicy,
+  })
+  .openapi('ChangePasswordRequest');
+
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
+
+export const PasswordOkResponseSchema = z
+  .object({
+    ok: z.literal(true),
+  })
+  .openapi('PasswordOkResponse');
+
+export type PasswordOkResponse = z.infer<typeof PasswordOkResponseSchema>;
+
+// ============================================
 // Auth Response Schemas
 // ============================================
 
@@ -68,6 +111,7 @@ export const AuthUserSchema = z
     role: UserRoleSchema,
     sellerId: z.string().uuid().nullable(),
     displayName: z.string().nullable(),
+    hasPassword: z.boolean(),
   })
   .openapi('AuthUser');
 

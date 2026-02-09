@@ -25,6 +25,8 @@ import {
   LoginRequestSchema,
   SellerSetupRequestSchema,
   ExchangeCodeRequestSchema,
+  SetPasswordRequestSchema,
+  ChangePasswordRequestSchema,
 } from '@workspace/contracts';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
@@ -313,5 +315,76 @@ export class AuthController {
     }
 
     return this.authService.setupSeller(req.user.userId, validated.displayName);
+  }
+
+  // ============================================
+  // SET PASSWORD (Google-only users)
+  // ============================================
+
+  @Post('auth/set-password')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set password for Google-only users who have no password' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['newPassword'],
+      properties: {
+        newPassword: { type: 'string', minLength: 10, description: 'Min 10 chars, at least 1 letter and 1 number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Password set successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 409, description: 'Password already set' })
+  async setPassword(@Req() req: any, @Body() body: unknown) {
+    let validated;
+    try {
+      validated = SetPasswordRequestSchema.parse(body);
+    } catch (error) {
+      handleZodError(error);
+    }
+
+    return this.authService.setPassword(req.user.userId, validated.newPassword);
+  }
+
+  // ============================================
+  // CHANGE PASSWORD
+  // ============================================
+
+  @Post('auth/change-password')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change password (requires current password)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['oldPassword', 'newPassword'],
+      properties: {
+        oldPassword: { type: 'string' },
+        newPassword: { type: 'string', minLength: 10, description: 'Min 10 chars, at least 1 letter and 1 number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized or incorrect current password' })
+  @ApiResponse({ status: 409, description: 'No password set (use set-password)' })
+  async changePassword(@Req() req: any, @Body() body: unknown) {
+    let validated;
+    try {
+      validated = ChangePasswordRequestSchema.parse(body);
+    } catch (error) {
+      handleZodError(error);
+    }
+
+    return this.authService.changePassword(
+      req.user.userId,
+      validated.oldPassword,
+      validated.newPassword,
+    );
   }
 }

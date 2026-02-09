@@ -96,6 +96,9 @@ import {
   LoginRequestSchema,
   RefreshRequestSchema,
   ExchangeCodeRequestSchema,
+  SetPasswordRequestSchema,
+  ChangePasswordRequestSchema,
+  PasswordOkResponseSchema,
   AuthTokensResponseSchema,
   AuthUserSchema,
   AuthMeResponseSchema,
@@ -196,3 +199,6 @@ registry.register('LogoutResponse', LogoutResponseSchema);
 registry.register('SellerSetupRequest', SellerSetupRequestSchema);
 registry.register('SellerProfile', SellerProfileSchema);
 registry.register('AuthError', AuthErrorSchema);
+registry.register('SetPasswordRequest', SetPasswordRequestSchema);
+registry.register('ChangePasswordRequest', ChangePasswordRequestSchema);
+registry.register('PasswordOkResponse', PasswordOkResponseSchema);

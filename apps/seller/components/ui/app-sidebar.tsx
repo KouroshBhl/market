@@ -26,14 +26,10 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@workspace/ui/components/sidebar';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth-provider';
 
-// This is sample data.
 const data = {
-  user: {
-    name: 'shadcn',
-    email: 'm@example.com',
-    avatar: '/avatars/shadcn.jpg',
-  },
   teams: [
     {
       name: 'Acme Inc',
@@ -169,6 +165,18 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { user, isLoading, logout } = useAuth();
+  const router = useRouter();
+
+  const navUser = React.useMemo(() => {
+    if (!user) return null;
+    const displayName = user.displayName || user.email.split('@')[0] || user.email;
+    return {
+      name: displayName,
+      email: user.email,
+    };
+  }, [user]);
+
   return (
     <Sidebar collapsible='icon' {...props}>
       <SidebarHeader>
@@ -179,7 +187,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={navUser}
+          isLoading={isLoading}
+          onLogout={logout}
+          onAccountClick={() => router.push('/account')}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
