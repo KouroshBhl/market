@@ -77,7 +77,7 @@ export function OverviewTab({ offer, onNavigateToKeys }: OverviewTabProps) {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-base font-medium">Price</Label>
+            <Label className="text-base font-medium">List Price</Label>
             <p className="text-lg font-semibold text-foreground">
               {(offer.priceAmount / 100).toFixed(2)} {offer.currency}
             </p>

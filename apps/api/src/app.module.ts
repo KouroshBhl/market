@@ -17,6 +17,7 @@ import { SellerTeamModule } from './seller-team/seller-team.module';
 import { PresenceModule } from './presence/presence.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
+import { SellerGatewaysModule } from './seller-gateways/seller-gateways.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { EmailModule } from './email/email.module';
     SettingsModule,
     RequirementsModule,
     SellerTeamModule,
+    SellerGatewaysModule,
     PresenceModule,
     OpenApiModule,
   ],

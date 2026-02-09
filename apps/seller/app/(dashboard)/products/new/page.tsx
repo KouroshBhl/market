@@ -35,6 +35,7 @@ import { CatalogProductSelector } from '@/components/catalog-product-selector';
 import { VariantSelector } from '@/components/variant-selector';
 import { SlaSelector } from '@/components/sla-selector';
 import { useQuery } from '@tanstack/react-query';
+import { authedFetch } from '@/lib/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -160,10 +161,24 @@ export default function NewOfferPage() {
       wizardState.estimatedDeliveryMinutes > 0
     : true;
   
+  // Compute seller net to validate pricing step
+  const wizardPriceCents = Math.round(
+    parseFloat(wizardState.priceAmount || '0') * 100
+  );
+  const wizardSellerNet =
+    platformFee && wizardPriceCents > 0
+      ? wizardPriceCents -
+        Math.round((wizardPriceCents * platformFee.platformFeeBps) / 10000) -
+        Math.round(
+          (wizardPriceCents * (platformFee.paymentFeeBps ?? 0)) / 10000
+        )
+      : wizardPriceCents;
+
   const canProceedFromPricing =
     wizardState.priceAmount.trim() !== '' &&
     !isNaN(Number(wizardState.priceAmount)) &&
     Number(wizardState.priceAmount) > 0 &&
+    wizardSellerNet > 0 &&
     manualDeliveryValid;
 
   // Get selected variant details
@@ -246,7 +261,7 @@ export default function NewOfferPage() {
 
       console.log('📤 Saving draft payload:', JSON.stringify(payload, null, 2));
 
-      const response = await fetch(`${API_URL}/offers/draft`, {
+      const response = await authedFetch(`${API_URL}/offers/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -337,7 +352,7 @@ export default function NewOfferPage() {
 
       console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
 
-      const response = await fetch(`${API_URL}/offers/publish`, {
+      const response = await authedFetch(`${API_URL}/offers/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -666,24 +681,37 @@ export default function NewOfferPage() {
         );
 
       case 'pricing': {
-        // Calculate pricing preview
+        // Calculate pricing breakdown (Phase 1: list price model)
         const priceCents = Math.round(
           parseFloat(wizardState.priceAmount || '0') * 100
         );
-        const commission =
+        const breakdown =
           platformFee && priceCents > 0
             ? {
-                sellerPriceCents: priceCents,
-                feeAmountCents: Math.round(
+                listPriceCents: priceCents,
+                platformFeeCents: Math.round(
                   (priceCents * platformFee.platformFeeBps) / 10000
                 ),
-                buyerTotalCents:
-                  priceCents +
-                  Math.round((priceCents * platformFee.platformFeeBps) / 10000),
+                paymentFeeCents: Math.round(
+                  (priceCents * (platformFee.paymentFeeBps ?? 0)) / 10000
+                ),
+                sellerNetCents:
+                  priceCents -
+                  Math.round(
+                    (priceCents * platformFee.platformFeeBps) / 10000
+                  ) -
+                  Math.round(
+                    (priceCents * (platformFee.paymentFeeBps ?? 0)) / 10000
+                  ),
               }
             : null;
 
-        const formatPrice = (cents: number) => (cents / 100).toFixed(2);
+        const sellerNetNegative = breakdown
+          ? breakdown.sellerNetCents <= 0
+          : false;
+
+        const formatPrice = (cents: number) =>
+          (Math.abs(cents) / 100).toFixed(2);
 
         return (
           <div>
@@ -692,7 +720,7 @@ export default function NewOfferPage() {
                 Pricing & Delivery
               </h2>
               <p className='text-muted-foreground'>
-                Set your offer price and delivery configuration
+                Set your offer list price and delivery configuration
               </p>
             </div>
 
@@ -700,7 +728,7 @@ export default function NewOfferPage() {
               <div className='grid grid-cols-2 gap-4'>
                 <div className='space-y-2'>
                   <Label htmlFor='price'>
-                    Price ({wizardState.currency}) *
+                    List price ({wizardState.currency}) *
                   </Label>
                   <Input
                     id='price'
@@ -714,7 +742,8 @@ export default function NewOfferPage() {
                     placeholder='9.99'
                   />
                   <p className='text-xs text-muted-foreground'>
-                    This is the amount you will receive per sale
+                    This is the price buyers will see. Platform and payment fees
+                    are deducted from your earnings.
                   </p>
                 </div>
 
@@ -736,20 +765,20 @@ export default function NewOfferPage() {
                 </div>
               </div>
 
-              {/* Pricing Preview Card */}
-              {commission && priceCents > 0 && (
+              {/* Earnings Breakdown */}
+              {breakdown && priceCents > 0 && (
                 <Card className='p-4 bg-muted/30 border-2'>
                   <h3 className='font-semibold text-foreground mb-3'>
-                    Pricing Preview
+                    Earnings Breakdown
                   </h3>
                   <div className='space-y-2'>
                     <div className='flex justify-between items-center'>
                       <span className='text-sm text-muted-foreground'>
-                        Your price (seller receives):
+                        List price:
                       </span>
                       <span className='font-medium text-foreground'>
                         {wizardState.currency}{' '}
-                        {formatPrice(commission.sellerPriceCents)}
+                        {formatPrice(breakdown.listPriceCents)}
                       </span>
                     </div>
                     <div className='flex justify-between items-center'>
@@ -758,20 +787,43 @@ export default function NewOfferPage() {
                         {platformFee?.platformFeePercent.toFixed(2)}%):
                       </span>
                       <span className='font-medium text-foreground'>
-                        +{wizardState.currency}{' '}
-                        {formatPrice(commission.feeAmountCents)}
+                        &minus;{wizardState.currency}{' '}
+                        {formatPrice(breakdown.platformFeeCents)}
                       </span>
                     </div>
+                    {(platformFee?.paymentFeeBps ?? 0) > 0 && (
+                      <div className='flex justify-between items-center'>
+                        <span className='text-sm text-muted-foreground'>
+                          Payment fee (
+                          {platformFee?.paymentFeePercent.toFixed(2)}%):
+                        </span>
+                        <span className='font-medium text-foreground'>
+                          &minus;{wizardState.currency}{' '}
+                          {formatPrice(breakdown.paymentFeeCents)}
+                        </span>
+                      </div>
+                    )}
                     <div className='border-t pt-2 flex justify-between items-center'>
                       <span className='font-semibold text-foreground'>
-                        Buyer pays:
+                        You receive (net):
                       </span>
-                      <span className='font-bold text-foreground text-lg'>
+                      <span
+                        className={`font-bold text-lg ${sellerNetNegative ? 'text-destructive' : 'text-foreground'}`}
+                      >
                         {wizardState.currency}{' '}
-                        {formatPrice(commission.buyerTotalCents)}
+                        {formatPrice(breakdown.sellerNetCents)}
                       </span>
                     </div>
                   </div>
+
+                  {sellerNetNegative && (
+                    <Alert variant='destructive' className='mt-3'>
+                      <p className='text-sm'>
+                        Your net earnings are zero or negative. Increase the
+                        list price to cover fees.
+                      </p>
+                    </Alert>
+                  )}
                 </Card>
               )}
 
@@ -973,9 +1025,9 @@ export default function NewOfferPage() {
                 <h3 className='font-semibold text-foreground mb-2'>Pricing</h3>
                 <dl className='space-y-2 text-sm'>
                   <div>
-                    <dt className='text-muted-foreground'>Price:</dt>
+                    <dt className='text-muted-foreground'>List price (buyer pays):</dt>
                     <dd className='text-foreground font-semibold'>
-                      {wizardState.currency} ${wizardState.priceAmount}
+                      {wizardState.currency} {wizardState.priceAmount}
                     </dd>
                   </div>
                   {wizardState.deliveryType === 'MANUAL' &&

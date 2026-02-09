@@ -107,10 +107,11 @@ model SellerProfile {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  members   SellerTeamMember[]
-  invites   SellerInvite[]
-  presences SellerPresence[]
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members            SellerTeamMember[]
+  invites            SellerInvite[]
+  presences          SellerPresence[]
+  gatewayPreferences SellerGatewayPreference[]
 
   @@map("seller_profiles")
 }
@@ -513,4 +514,52 @@ model PlatformSettings {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+// ============================================
+// PLATFORM GATEWAYS (Payment Providers)
+// ============================================
+
+enum SettlementMode {
+  PLATFORM_COLLECT // Platform collects payment, settles to seller
+  SELLER_DIRECT    // Future: seller collects directly
+}
+
+// Admin-managed platform payment gateways
+model PlatformGateway {
+  id                       String         @id @default(uuid())
+  name                     String         // Display name (e.g. "Zibal Checkout")
+  provider                 String         // Provider key (e.g. "zibal", "zarinpal")
+  settlementMode           SettlementMode @default(PLATFORM_COLLECT) @map("settlement_mode")
+  feePercent               Decimal?       @map("fee_percent") @db.Decimal(5, 2) // Optional metadata; no pricing changes
+  supportedCurrencies      String[]       @default([]) @map("supported_currencies") // e.g. ["IRR", "USD"]
+  isEnabledGlobally        Boolean        @default(true) @map("is_enabled_globally") // Admin kill switch
+  sellerCanToggle          Boolean        @default(true) @map("seller_can_toggle") // false = admin locked
+  defaultEnabledForNewSellers Boolean     @default(true) @map("default_enabled_for_new_sellers")
+  sortOrder                Int            @default(0) @map("sort_order")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
+
+  sellerPreferences SellerGatewayPreference[]
+
+  @@index([isEnabledGlobally, sortOrder])
+  @@map("platform_gateways")
+}
+
+// Seller-specific gateway preferences (enable/disable)
+model SellerGatewayPreference {
+  id        String   @id @default(uuid())
+  sellerId  String   @map("seller_id")
+  gatewayId String   @map("gateway_id")
+  isEnabled Boolean  @default(true) @map("is_enabled")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  seller  SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  gateway PlatformGateway @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, gatewayId])
+  @@index([sellerId])
+  @@index([gatewayId])
+  @@map("seller_gateway_preferences")
 }

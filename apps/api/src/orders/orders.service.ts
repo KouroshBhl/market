@@ -111,10 +111,10 @@ export class OrdersService {
     const platformSettings = await prisma.platformSettings.findFirst();
     const platformFeeBps = platformSettings?.platformFeeBps || 300; // Default 3%
 
-    // Calculate pricing with snapshots
-    const basePriceAmount = offer.priceAmount; // Seller's price in cents
+    // Phase 1 pricing: list price = buyer price (fees absorbed by seller)
+    const basePriceAmount = offer.priceAmount; // List price (what buyer pays)
     const feeAmount = Math.round((basePriceAmount * platformFeeBps) / 10000);
-    const buyerTotalAmount = basePriceAmount + feeAmount;
+    const buyerTotalAmount = basePriceAmount; // Buyer pays exactly the list price
 
     // Generate unique display code with retry logic
     let order;

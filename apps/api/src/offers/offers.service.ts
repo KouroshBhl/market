@@ -491,15 +491,8 @@ export class OffersService {
     availability?: AvailabilityStatus,
     platformFeeBps?: number,
   ): OfferWithDetails {
-    // Calculate buyer price (base + platform fee)
-    let buyerPriceAmount: number | undefined;
-    if (platformFeeBps !== undefined && offer.priceAmount > 0) {
-      const commission = this.settingsService.calculateCommission(
-        offer.priceAmount,
-        platformFeeBps
-      );
-      buyerPriceAmount = commission.buyerTotalCents;
-    }
+    // Phase 1: buyer price = list price (fees absorbed by seller, not added on top)
+    const buyerPriceAmount = offer.priceAmount > 0 ? offer.priceAmount : undefined;
 
     return {
       id: offer.id,

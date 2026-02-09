@@ -13,6 +13,7 @@ import type {
   RevealKeyResponse,
   InvalidateKeyResponse,
   PlatformFeeConfig,
+  SellerPricingBreakdown,
 } from '@workspace/contracts';
 import { authedFetch } from './auth';
 
@@ -256,16 +257,32 @@ export async function getPlatformFee(): Promise<PlatformFeeConfig> {
 }
 
 /**
- * Calculate commission for pricing preview
- * Uses integer math to avoid floating point issues
+ * Calculate seller pricing breakdown from a list price.
+ *
+ * Phase 1 semantics (Plati-style):
+ *   list_price  = what the buyer sees and pays
+ *   commission  = list_price * platformFeeBps / 10000
+ *   paymentFee  = list_price * paymentFeeBps / 10000
+ *   sellerNet   = list_price - commission - paymentFee
+ *
+ * Uses integer math to avoid floating point issues.
+ * Must match backend SettingsService.calculateSellerBreakdown exactly.
  */
-export function calculateCommission(sellerPriceCents: number, feeBps: number) {
-  const feeAmountCents = Math.round((sellerPriceCents * feeBps) / 10000);
-  const buyerTotalCents = sellerPriceCents + feeAmountCents;
-  
+export function calculateSellerBreakdown(
+  listPriceCents: number,
+  platformFeeBps: number,
+  paymentFeeBps: number,
+): SellerPricingBreakdown {
+  const platformFeeCents = Math.round((listPriceCents * platformFeeBps) / 10000);
+  const paymentFeeCents = Math.round((listPriceCents * paymentFeeBps) / 10000);
+  const sellerNetCents = listPriceCents - platformFeeCents - paymentFeeCents;
+
   return {
-    sellerPriceCents,
-    feeAmountCents,
-    buyerTotalCents,
+    listPriceCents,
+    platformFeeBps,
+    platformFeeCents,
+    paymentFeeBps,
+    paymentFeeCents,
+    sellerNetCents,
   };
 }

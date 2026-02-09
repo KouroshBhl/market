@@ -363,6 +363,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const settingsItems = [
       { title: 'General', url: '#' },
       { title: 'Team', url: '/settings/team' },
+      { title: 'Payments', url: '/settings/payments' },
     ];
 
     if (hasPermission('payouts.manage')) {

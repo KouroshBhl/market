@@ -19,12 +19,14 @@ export class SettingsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Platform fee configuration',
+    description: 'Platform fee configuration (including default payment gateway fee)',
     schema: {
       type: 'object',
       properties: {
-        platformFeeBps: { type: 'number', example: 300, description: 'Basis points (300 = 3%)' },
-        platformFeePercent: { type: 'number', example: 3.0, description: 'Percentage (3.0 = 3%)' },
+        platformFeeBps: { type: 'number', example: 300, description: 'Platform commission in basis points (300 = 3%)' },
+        platformFeePercent: { type: 'number', example: 3.0, description: 'Platform commission percentage (3.0 = 3%)' },
+        paymentFeeBps: { type: 'number', example: 1000, description: 'Default payment gateway fee in basis points (1000 = 10%)' },
+        paymentFeePercent: { type: 'number', example: 10.0, description: 'Default payment gateway fee percentage (10.0 = 10%)' },
         updatedAt: { type: 'string', format: 'date-time' },
       },
     },

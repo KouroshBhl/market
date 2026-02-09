@@ -104,6 +104,16 @@ import {
 } from './schemas/requirement.schema';
 
 import {
+  SettlementModeSchema,
+  GatewayStatusSchema,
+  PlatformGatewaySchema,
+  SellerGatewayItemSchema,
+  GetSellerGatewaysResponseSchema,
+  UpdateSellerGatewaySchema,
+  UpdateSellerGatewayResponseSchema,
+} from './schemas/gateway.schema';
+
+import {
   UserRoleSchema,
   SignupRequestSchema,
   LoginRequestSchema,
@@ -213,6 +223,15 @@ registry.register('UpdateRequirementTemplate', UpdateRequirementTemplateSchema);
 registry.register('RequirementTemplateAdminResponse', RequirementTemplateAdminResponseSchema);
 registry.register('GetRequirementTemplatesResponse', GetRequirementTemplatesResponseSchema);
 registry.register('RequirementsPayload', RequirementsPayloadSchema);
+
+// Gateway schemas
+registry.register('SettlementMode', SettlementModeSchema);
+registry.register('GatewayStatus', GatewayStatusSchema);
+registry.register('PlatformGateway', PlatformGatewaySchema);
+registry.register('SellerGatewayItem', SellerGatewayItemSchema);
+registry.register('GetSellerGatewaysResponse', GetSellerGatewaysResponseSchema);
+registry.register('UpdateSellerGateway', UpdateSellerGatewaySchema);
+registry.register('UpdateSellerGatewayResponse', UpdateSellerGatewayResponseSchema);
 
 // Auth schemas
 registry.register('UserRole', UserRoleSchema);

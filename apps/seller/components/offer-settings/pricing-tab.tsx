@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Button, Card, Input, Label, Select, toast } from '@workspace/ui';
+import { Button, Card, Input, Label, Select, Alert, toast } from '@workspace/ui';
 import type { OfferWithDetails } from '@workspace/contracts';
 import type { Currency } from '@workspace/contracts';
 import {
   updateOfferPricing,
   getPlatformFee,
-  calculateCommission,
+  calculateSellerBreakdown,
 } from '@/lib/api';
 
 const CURRENCIES: Currency[] = ['USD', 'EUR', 'UAH', 'RUB', 'IRR'];
@@ -24,7 +24,7 @@ export function PricingTab({ offer }: PricingTabProps) {
   );
   const [currency, setCurrency] = useState<string>(offer.currency);
 
-  // Fetch platform fee configuration
+  // Fetch platform fee configuration (includes payment gateway fee)
   const { data: platformFee } = useQuery({
     queryKey: ['platformFee'],
     queryFn: getPlatformFee,
@@ -46,7 +46,7 @@ export function PricingTab({ offer }: PricingTabProps) {
       queryClient.invalidateQueries({ queryKey: ['offer', offer.id] });
       toast({
         title: 'Pricing updated',
-        description: 'Offer price and currency saved.',
+        description: 'Offer list price and currency saved.',
         variant: 'success',
       });
     },
@@ -59,6 +59,18 @@ export function PricingTab({ offer }: PricingTabProps) {
     },
   });
 
+  // Calculate pricing breakdown
+  const priceCents = Math.round(parseFloat(priceAmount || '0') * 100);
+  const breakdown = platformFee
+    ? calculateSellerBreakdown(
+        priceCents,
+        platformFee.platformFeeBps,
+        platformFee.paymentFeeBps,
+      )
+    : null;
+
+  const sellerNetNegative = breakdown ? breakdown.sellerNetCents <= 0 : false;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseFloat(priceAmount);
@@ -70,18 +82,21 @@ export function PricingTab({ offer }: PricingTabProps) {
       });
       return;
     }
+    if (sellerNetNegative) {
+      toast({
+        title: 'Price too low',
+        description:
+          'Your net earnings would be zero or negative. Please increase the list price.',
+        variant: 'destructive',
+      });
+      return;
+    }
     mutation.mutate();
   };
 
-  // Calculate pricing preview
-  const priceCents = Math.round(parseFloat(priceAmount || '0') * 100);
-  const commission = platformFee
-    ? calculateCommission(priceCents, platformFee.platformFeeBps)
-    : null;
-
   // Format currency helper
   const formatPrice = (cents: number) => {
-    return (cents / 100).toFixed(2);
+    return (Math.abs(cents) / 100).toFixed(2);
   };
 
   return (
@@ -89,7 +104,7 @@ export function PricingTab({ offer }: PricingTabProps) {
       <Card className='p-6'>
         <form onSubmit={handleSubmit} className='space-y-6 max-w-sm'>
           <div className='space-y-2'>
-            <Label htmlFor='priceAmount'>Price ({currency}) *</Label>
+            <Label htmlFor='priceAmount'>List price ({currency}) *</Label>
             <Input
               id='priceAmount'
               type='number'
@@ -101,7 +116,10 @@ export function PricingTab({ offer }: PricingTabProps) {
               required
             />
             <p className='text-sm text-muted-foreground'>
-              This is the amount you will receive per sale
+              This is the price buyers will see.
+            </p>
+            <p className='text-xs text-muted-foreground'>
+              Platform and payment fees are deducted from your earnings.
             </p>
           </div>
           <div className='space-y-2'>
@@ -119,25 +137,26 @@ export function PricingTab({ offer }: PricingTabProps) {
               ))}
             </Select>
           </div>
-          <Button type='submit' disabled={mutation.isPending}>
+          <Button
+            type='submit'
+            disabled={mutation.isPending || sellerNetNegative}
+          >
             {mutation.isPending ? 'Saving…' : 'Save pricing'}
           </Button>
         </form>
       </Card>
 
-      {/* Pricing Preview Card */}
-      {commission && priceCents > 0 && (
+      {/* Seller Pricing Breakdown */}
+      {breakdown && priceCents > 0 && (
         <Card className='p-6'>
           <h3 className='font-semibold text-foreground mb-4'>
-            Pricing Preview
+            Earnings Breakdown
           </h3>
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
-              <span className='text-muted-foreground'>
-                Your price (seller receives):
-              </span>
+              <span className='text-muted-foreground'>List price:</span>
               <span className='font-medium text-foreground'>
-                {currency} {formatPrice(commission.sellerPriceCents)}
+                {currency} {formatPrice(breakdown.listPriceCents)}
               </span>
             </div>
             <div className='flex justify-between items-center'>
@@ -145,16 +164,39 @@ export function PricingTab({ offer }: PricingTabProps) {
                 Platform fee ({platformFee?.platformFeePercent.toFixed(2)}%):
               </span>
               <span className='font-medium text-foreground'>
-                +{currency} {formatPrice(commission.feeAmountCents)}
+                &minus;{currency} {formatPrice(breakdown.platformFeeCents)}
               </span>
             </div>
+            {breakdown.paymentFeeBps > 0 && (
+              <div className='flex justify-between items-center'>
+                <span className='text-muted-foreground'>
+                  Payment fee ({platformFee?.paymentFeePercent.toFixed(2)}%):
+                </span>
+                <span className='font-medium text-foreground'>
+                  &minus;{currency} {formatPrice(breakdown.paymentFeeCents)}
+                </span>
+              </div>
+            )}
             <div className='border-t pt-3 flex justify-between items-center'>
-              <span className='font-semibold text-foreground'>Buyer pays:</span>
-              <span className='font-bold text-foreground text-lg'>
-                {currency} {formatPrice(commission.buyerTotalCents)}
+              <span className='font-semibold text-foreground'>
+                You receive (net):
+              </span>
+              <span
+                className={`font-bold text-lg ${sellerNetNegative ? 'text-destructive' : 'text-foreground'}`}
+              >
+                {currency} {formatPrice(breakdown.sellerNetCents)}
               </span>
             </div>
           </div>
+
+          {sellerNetNegative && (
+            <Alert variant='destructive' className='mt-4'>
+              <p className='text-sm'>
+                Your net earnings are zero or negative. Increase the list price
+                to cover platform and payment fees.
+              </p>
+            </Alert>
+          )}
         </Card>
       )}
     </div>

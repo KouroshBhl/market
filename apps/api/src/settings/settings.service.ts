@@ -7,6 +7,7 @@ import type {
   PlatformFeeConfig,
   UpdatePlatformFee,
   CommissionCalculation,
+  SellerPricingBreakdown,
 } from '@workspace/contracts';
 
 const SETTINGS_ID = 'platform-settings-singleton'; // Fixed ID for single-row pattern
@@ -16,7 +17,8 @@ const MAX_FEE_BPS = 5000; // 50% max fee
 export class SettingsService {
   /**
    * Get current platform fee configuration (single-row table)
-   * Creates default settings if none exist
+   * Also includes the default payment gateway fee from the first enabled gateway.
+   * Creates default settings if none exist.
    */
   async getPlatformSettings(): Promise<PlatformFeeConfig> {
     let settings = await prisma.platformSettings.findFirst();
@@ -31,11 +33,35 @@ export class SettingsService {
       });
     }
 
+    // Look up the default payment gateway fee (first enabled gateway with a fee)
+    const paymentFeeBps = await this.getDefaultPaymentFeeBps();
+
     return {
       platformFeeBps: settings.platformFeeBps,
       platformFeePercent: settings.platformFeeBps / 100,
+      paymentFeeBps,
+      paymentFeePercent: paymentFeeBps / 100,
       updatedAt: settings.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Get the default payment gateway fee in basis points.
+   * Reads from the first globally-enabled platform gateway's feePercent.
+   * Returns 0 if no gateway configured or feePercent is null.
+   */
+  private async getDefaultPaymentFeeBps(): Promise<number> {
+    const gateway = await prisma.platformGateway.findFirst({
+      where: { isEnabledGlobally: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (!gateway || gateway.feePercent === null) {
+      return 0;
+    }
+
+    // feePercent is Decimal(5,2) — e.g. 10.00 means 10%. Convert to bps: * 100
+    return Math.round(Number(gateway.feePercent) * 100);
   }
 
   /**
@@ -55,15 +81,11 @@ export class SettingsService {
 
     let settings;
     if (existing) {
-      // Update the single row
       settings = await prisma.platformSettings.update({
         where: { id: existing.id },
-        data: {
-          platformFeeBps: data.platformFeeBps,
-        },
+        data: { platformFeeBps: data.platformFeeBps },
       });
     } else {
-      // Create if missing (should not happen after seed, but defensive)
       settings = await prisma.platformSettings.create({
         data: {
           id: SETTINGS_ID,
@@ -72,27 +94,60 @@ export class SettingsService {
       });
     }
 
+    const paymentFeeBps = await this.getDefaultPaymentFeeBps();
+
     return {
       platformFeeBps: settings.platformFeeBps,
       platformFeePercent: settings.platformFeeBps / 100,
+      paymentFeeBps,
+      paymentFeePercent: paymentFeeBps / 100,
       updatedAt: settings.updatedAt.toISOString(),
     };
   }
 
+  // ============================================
+  // PRICING COMPUTATIONS (single source of truth)
+  // ============================================
+
   /**
-   * Calculate commission for a given seller price
-   * Uses integer math only to avoid floating point issues
-   * 
-   * @param sellerPriceCents - Seller's base price in cents
-   * @param feeBps - Platform fee in basis points (e.g., 300 = 3%)
-   * @returns Commission calculation with all amounts in cents
+   * Calculate seller pricing breakdown from a list price.
+   *
+   * Phase 1 semantics (Plati-style):
+   *   list_price = what the buyer sees and pays (= offer.priceAmount)
+   *   commission  = list_price * platformFeeBps / 10000
+   *   paymentFee  = list_price * paymentFeeBps / 10000
+   *   sellerNet   = list_price - commission - paymentFee
+   *
+   * All amounts in smallest currency unit (cents).
+   * Uses integer math to avoid floating point issues.
+   */
+  calculateSellerBreakdown(
+    listPriceCents: number,
+    platformFeeBps: number,
+    paymentFeeBps: number,
+  ): SellerPricingBreakdown {
+    const platformFeeCents = Math.round((listPriceCents * platformFeeBps) / 10000);
+    const paymentFeeCents = Math.round((listPriceCents * paymentFeeBps) / 10000);
+    const sellerNetCents = listPriceCents - platformFeeCents - paymentFeeCents;
+
+    return {
+      listPriceCents,
+      platformFeeBps,
+      platformFeeCents,
+      paymentFeeBps,
+      paymentFeeCents,
+      sellerNetCents,
+    };
+  }
+
+  /**
+   * Legacy: Calculate commission (old buyer-pays-more model).
+   * Kept for backward compatibility with existing order snapshots.
    */
   calculateCommission(
     sellerPriceCents: number,
     feeBps: number,
   ): CommissionCalculation {
-    // Calculate fee amount: (sellerPrice * feeBps) / 10000
-    // Using integer math to avoid floating point precision issues
     const feeAmountCents = Math.round((sellerPriceCents * feeBps) / 10000);
     const buyerTotalCents = sellerPriceCents + feeAmountCents;
 

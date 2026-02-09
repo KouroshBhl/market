@@ -32,7 +32,7 @@ export const OfferSchema = z.object({
   autoKeyAvailableCount: z.number().int().optional(), // Count of available keys
   availability: AvailabilityStatusSchema.optional(), // in_stock | out_of_stock
   // Computed pricing fields
-  buyerPriceAmount: z.number().int().optional(), // Total buyer pays (base + platform fee) in cents
+  buyerPriceAmount: z.number().int().optional(), // Buyer-facing price in cents (Phase 1: equals priceAmount)
 });
 
 export type Offer = z.infer<typeof OfferSchema>;
