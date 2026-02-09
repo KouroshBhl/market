@@ -35,6 +35,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  useSidebar,
 } from '@workspace/ui/components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
@@ -191,6 +192,7 @@ const PRESENCE_DOT_COLORS: Record<string, string> = {
 };
 
 function SidebarTeamHeader() {
+  const { state: sidebarState } = useSidebar();
   const { activeSeller, hasPermission } = useSeller();
   const { presenceMap, onlineCount } = usePresence();
   const [inviteOpen, setInviteOpen] = React.useState(false);
@@ -199,6 +201,7 @@ function SidebarTeamHeader() {
 
   const sellerId = activeSeller?.sellerId;
   const canManage = hasPermission('team.manage');
+  const isCollapsed = sidebarState === 'collapsed';
 
   // Fetch team members
   const refreshTeam = React.useCallback(() => {
@@ -214,6 +217,29 @@ function SidebarTeamHeader() {
 
   const previewMembers = teamMembers.slice(0, 4);
 
+  // When collapsed, show only a single icon button
+  if (isCollapsed) {
+    return (
+      <div className='flex items-center justify-center py-2'>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 relative'
+          onClick={() => router.push('/settings/team')}
+          aria-label='Team'
+        >
+          <Users className='h-4 w-4' />
+          {onlineCount > 0 && (
+            <span className='absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[9px] font-bold text-white ring-2 ring-sidebar'>
+              {onlineCount}
+            </span>
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  // Expanded state
   return (
     <div className='px-3 py-3 space-y-3'>
       {/* Seller name + online badge */}

@@ -14,6 +14,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  SidebarTrigger,
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbPage,
 } from "@workspace/ui";
 import { useToast } from "@workspace/ui/hooks/use-toast";
 import { useAuth } from "@/components/auth-provider";
@@ -303,6 +308,33 @@ function ChangePasswordDialog({
 }
 
 // ============================================
+// Page shell
+// ============================================
+
+function AccountPageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbPage>Account</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </header>
+      <div className="flex flex-1 flex-col p-4 md:p-6">
+        <div className="mx-auto w-full max-w-2xl space-y-6">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================
 // Account Page
 // ============================================
 
@@ -313,13 +345,13 @@ export default function AccountPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6 max-w-2xl">
+      <AccountPageShell>
         <h1 className="text-2xl font-bold text-foreground">Account</h1>
         <Card className="p-6 space-y-4">
           <div className="h-4 w-32 rounded bg-muted animate-pulse" />
           <div className="h-4 w-48 rounded bg-muted animate-pulse" />
         </Card>
-      </div>
+      </AccountPageShell>
     );
   }
 
@@ -328,7 +360,7 @@ export default function AccountPage() {
   const displayName = user.displayName || user.email.split("@")[0] || user.email;
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <AccountPageShell>
       <h1 className="text-2xl font-bold text-foreground">Account</h1>
 
       {/* ---- Profile Section ---- */}
@@ -399,6 +431,6 @@ export default function AccountPage() {
         onOpenChange={setChangePasswordOpen}
         onSuccess={() => { refreshUser(); }}
       />
-    </div>
+    </AccountPageShell>
   );
 }
