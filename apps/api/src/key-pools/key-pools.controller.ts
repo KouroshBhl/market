@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +18,10 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { AuthGuard } from '../auth/auth.guard';
+import { EmailVerifiedGuard } from '../auth/email-verified.guard';
 import { KeyPoolsService } from './key-pools.service';
 import {
   CreateKeyPoolDto,
@@ -42,6 +46,8 @@ export class KeyPoolsController {
   constructor(private readonly keyPoolsService: KeyPoolsService) {}
 
   @Post()
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create key pool',
     description: 'Create a key pool for an AUTO_KEY offer. One pool per offer.',
@@ -143,6 +149,8 @@ export class KeyPoolsController {
   }
 
   @Post(':poolId/keys/upload')
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Upload keys',

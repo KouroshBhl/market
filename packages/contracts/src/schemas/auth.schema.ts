@@ -92,6 +92,26 @@ export const PasswordOkResponseSchema = z
 export type PasswordOkResponse = z.infer<typeof PasswordOkResponseSchema>;
 
 // ============================================
+// Email Verification Schemas
+// ============================================
+
+export const ResendVerificationRequestSchema = z
+  .object({
+    email: z.string().email().optional(),
+  })
+  .openapi('ResendVerificationRequest');
+
+export type ResendVerificationRequest = z.infer<typeof ResendVerificationRequestSchema>;
+
+export const ResendVerificationResponseSchema = z
+  .object({
+    ok: z.literal(true),
+  })
+  .openapi('ResendVerificationResponse');
+
+export type ResendVerificationResponse = z.infer<typeof ResendVerificationResponseSchema>;
+
+// ============================================
 // Auth Response Schemas
 // ============================================
 
@@ -112,6 +132,8 @@ export const AuthUserSchema = z
     sellerId: z.string().uuid().nullable(),
     displayName: z.string().nullable(),
     hasPassword: z.boolean(),
+    isEmailVerified: z.boolean(),
+    emailVerifiedAt: z.string().datetime().nullable(),
   })
   .openapi('AuthUser');
 

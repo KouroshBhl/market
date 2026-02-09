@@ -177,6 +177,32 @@ export async function apiSellerSetup(displayName: string) {
 }
 
 // ============================================
+// Email Verification
+// ============================================
+
+export async function apiResendVerification(): Promise<{ ok: true }> {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const res = await fetch(`${API_URL}/auth/resend-verification`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify({}),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Failed to send verification email');
+  }
+
+  return res.json();
+}
+
+// ============================================
 // Password Management
 // ============================================
 

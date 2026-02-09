@@ -1,5 +1,6 @@
 import { SidebarProvider, SidebarInset } from '@workspace/ui';
 import { AppSidebar } from '@/components/ui/app-sidebar';
+import { EmailVerificationBanner } from '@/components/email-verification-banner';
 
 export default function DashboardLayout({
   children,
@@ -9,7 +10,10 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset>
+        <EmailVerificationBanner />
+        {children}
+      </SidebarInset>
     </SidebarProvider>
   );
 }

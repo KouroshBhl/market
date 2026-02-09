@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { OffersService } from './offers.service';
+import { AuthGuard } from '../auth/auth.guard';
+import { EmailVerifiedGuard } from '../auth/email-verified.guard';
 import type {
   Offer,
   SaveOfferDraft,
@@ -37,6 +39,8 @@ export class OffersController {
   }
 
   @Post('offers/draft')
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Save offer draft',
     description:
@@ -50,11 +54,17 @@ export class OffersController {
     status: 400,
     description: 'Invalid request',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Email not verified (EMAIL_NOT_VERIFIED)',
+  })
   async saveDraft(@Body() data: SaveOfferDraft): Promise<Offer> {
     return this.offersService.saveDraft(data);
   }
 
   @Post('offers/publish')
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Publish offer',
     description:
@@ -68,11 +78,17 @@ export class OffersController {
     status: 400,
     description: 'Validation failed',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Email not verified (EMAIL_NOT_VERIFIED)',
+  })
   async publish(@Body() data: PublishOffer): Promise<Offer> {
     return this.offersService.publish(data);
   }
 
   @Patch('offers/:id')
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update offer',
     description: 'Update offer fields (pricing, description). Works for draft and active offers.',
@@ -87,6 +103,10 @@ export class OffersController {
     description: 'Offer updated successfully',
   })
   @ApiResponse({
+    status: 403,
+    description: 'Email not verified (EMAIL_NOT_VERIFIED)',
+  })
+  @ApiResponse({
     status: 404,
     description: 'Offer not found',
   })
@@ -98,6 +118,8 @@ export class OffersController {
   }
 
   @Patch('offers/:id/status')
+  @UseGuards(AuthGuard, EmailVerifiedGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update offer status',
     description: 'Toggle offer status between active and inactive. Cannot modify draft offers.',
@@ -114,6 +136,10 @@ export class OffersController {
   @ApiResponse({
     status: 400,
     description: 'Invalid status transition',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Email not verified (EMAIL_NOT_VERIFIED)',
   })
   @ApiResponse({
     status: 404,

@@ -4,9 +4,10 @@ import { OffersService } from './offers.service';
 import { CatalogModule } from '../catalog/catalog.module';
 import { KeyPoolsModule } from '../key-pools/key-pools.module';
 import { SettingsModule } from '../settings/settings.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [CatalogModule, KeyPoolsModule, SettingsModule],
+  imports: [AuthModule, CatalogModule, KeyPoolsModule, SettingsModule],
   controllers: [OffersController],
   providers: [OffersService],
   exports: [OffersService],

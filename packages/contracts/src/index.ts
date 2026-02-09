@@ -99,6 +99,8 @@ import {
   SetPasswordRequestSchema,
   ChangePasswordRequestSchema,
   PasswordOkResponseSchema,
+  ResendVerificationRequestSchema,
+  ResendVerificationResponseSchema,
   AuthTokensResponseSchema,
   AuthUserSchema,
   AuthMeResponseSchema,
@@ -202,3 +204,5 @@ registry.register('AuthError', AuthErrorSchema);
 registry.register('SetPasswordRequest', SetPasswordRequestSchema);
 registry.register('ChangePasswordRequest', ChangePasswordRequestSchema);
 registry.register('PasswordOkResponse', PasswordOkResponseSchema);
+registry.register('ResendVerificationRequest', ResendVerificationRequestSchema);
+registry.register('ResendVerificationResponse', ResendVerificationResponseSchema);

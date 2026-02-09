@@ -5,6 +5,7 @@ import {
   Body,
   Req,
   Res,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthGuard as GoogleAuthGuard } from '@nestjs/passport';
 import { ZodError } from 'zod';
@@ -27,6 +29,7 @@ import {
   ExchangeCodeRequestSchema,
   SetPasswordRequestSchema,
   ChangePasswordRequestSchema,
+  ResendVerificationRequestSchema,
 } from '@workspace/contracts';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
@@ -281,6 +284,56 @@ export class AuthController {
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, setCookieOptions(this.isProduction));
 
     return { accessToken, expiresIn };
+  }
+
+  // ============================================
+  // EMAIL VERIFICATION
+  // ============================================
+
+  @Get('auth/verify-email')
+  @ApiOperation({ summary: 'Verify email address via token link' })
+  @ApiQuery({ name: 'token', required: true, type: String })
+  @ApiResponse({ status: 302, description: 'Redirects to seller app with status' })
+  async verifyEmail(@Query('token') token: string, @Res() res: any) {
+    if (!token) {
+      res.redirect(`${this.sellerAppUrl}/auth/verified?status=invalid`);
+      return;
+    }
+
+    const result = await this.authService.verifyEmail(token);
+
+    if (result.success) {
+      res.redirect(`${this.sellerAppUrl}/auth/verified?status=success`);
+    } else {
+      res.redirect(`${this.sellerAppUrl}/auth/verified?status=invalid`);
+    }
+  }
+
+  @Post('auth/resend-verification')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend email verification (rate-limited)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', description: 'Optional; defaults to current user email' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Verification email sent' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Rate limited' })
+  async resendVerification(@Req() req: any, @Body() body: unknown) {
+    // Validate body (email is optional)
+    try {
+      ResendVerificationRequestSchema.parse(body);
+    } catch (error) {
+      handleZodError(error);
+    }
+
+    return this.authService.resendVerification(req.user.userId);
   }
 
   // ============================================

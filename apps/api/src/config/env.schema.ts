@@ -15,6 +15,11 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().default('not-set'),
   GOOGLE_CALLBACK_URL: z.string().default('http://localhost:4000/auth/google/callback'),
   SELLER_APP_URL: z.string().default('http://localhost:3002'),
+  API_BASE_URL: z.string().default('http://localhost:4000'),
+  // Postmark (optional in dev — emails logged to console if not set)
+  POSTMARK_SERVER_TOKEN: z.string().optional(),
+  POSTMARK_MESSAGE_STREAM: z.string().default('transactional'),
+  EMAIL_FROM: z.string().default('VendorsGG <owner@vendorsgg.com>'),
 });
 
 export type Env = z.infer<typeof envSchema>;

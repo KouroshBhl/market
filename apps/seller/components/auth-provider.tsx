@@ -23,7 +23,7 @@ export function useAuth() {
   return React.useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/auth/callback"];
+const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/auth/callback", "/auth/verified"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<AuthUser | null>(null);

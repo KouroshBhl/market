@@ -15,6 +15,7 @@ import { SettingsModule } from './settings/settings.module';
 import { RequirementsModule } from './requirements/requirements.module';
 import { SellerTeamModule } from './seller-team/seller-team.module';
 import { AuthModule } from './auth/auth.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AuthModule } from './auth/auth.module';
       validate: validateEnv,
     }),
     CryptoModule, // Global module for encryption
+    EmailModule, // Global module for sending emails
     AuthModule,
     HealthModule,
     VersionModule,
