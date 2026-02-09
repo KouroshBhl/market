@@ -25,7 +25,7 @@ export class EmailService implements OnModuleInit {
       'transactional';
     this.from =
       this.configService.get<string>('EMAIL_FROM') ||
-      'VendorsGG <owner@vendorsgg.com>';
+      'VendorsGG <noreply@vendorsgg.com>';
     this.apiBaseUrl =
       this.configService.get<string>('API_BASE_URL') ||
       `http://localhost:${this.configService.get<string>('PORT') || '4000'}`;

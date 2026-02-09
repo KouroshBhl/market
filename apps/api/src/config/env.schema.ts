@@ -19,7 +19,7 @@ export const envSchema = z.object({
   // Postmark (optional in dev — emails logged to console if not set)
   POSTMARK_SERVER_TOKEN: z.string().optional(),
   POSTMARK_MESSAGE_STREAM: z.string().default('transactional'),
-  EMAIL_FROM: z.string().default('VendorsGG <owner@vendorsgg.com>'),
+  EMAIL_FROM: z.string().default('VendorsGG <noreply@vendorsgg.com>'),
 });
 
 export type Env = z.infer<typeof envSchema>;
