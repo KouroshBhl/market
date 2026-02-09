@@ -291,9 +291,12 @@ export class AuthController {
   // ============================================
 
   @Get('auth/verify-email')
-  @ApiOperation({ summary: 'Verify email address via token link' })
+  @ApiOperation({
+    summary: 'Verify email address via token link',
+    description: 'Idempotent: re-clicking an already-used token still shows success if the user is verified.',
+  })
   @ApiQuery({ name: 'token', required: true, type: String })
-  @ApiResponse({ status: 302, description: 'Redirects to seller app with status' })
+  @ApiResponse({ status: 302, description: 'Redirects to seller app /auth/verified?status=success|invalid' })
   async verifyEmail(@Query('token') token: string, @Res() res: any) {
     if (!token) {
       res.redirect(`${this.sellerAppUrl}/auth/verified?status=invalid`);

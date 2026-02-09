@@ -60,6 +60,7 @@ model User {
   updatedAt       DateTime  @updatedAt @default(now()) @map("updated_at")
 
   sellerTeamMemberships   SellerTeamMember[]
+  sellerPresences         SellerPresence[]
   assignedOrders          Order[]            @relation("OrderAssignee")
   refreshTokens           RefreshToken[]
   sellerProfile           SellerProfile?
@@ -106,7 +107,10 @@ model SellerProfile {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members   SellerTeamMember[]
+  invites   SellerInvite[]
+  presences SellerPresence[]
 
   @@map("seller_profiles")
 }
@@ -127,25 +131,69 @@ model AuthCode {
 
 enum SellerTeamRole {
   OWNER
-  STAFF
+  ADMIN
+  OPS
+  CATALOG
+  SUPPORT
 }
 
-// Seller team membership (for order assignment workflow)
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+// Seller team membership — RBAC pivot table
+// Access is always scoped to (user_id + seller_id).
+// Role is fixed (no custom roles); permissions derived from role.
 model SellerTeamMember {
   id        String          @id @default(uuid())
-  sellerId  String          @map("seller_id") // Seller ID (demo UUID, will be FK in future)
+  sellerId  String          @map("seller_id")
   userId    String          @map("user_id")
-  role      SellerTeamRole  @default(STAFF)
-  isActive  Boolean         @default(true) @map("is_active")
+  role      SellerTeamRole  @default(SUPPORT)
+  status    MemberStatus    @default(ACTIVE)
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([sellerId, userId])
-  @@index([sellerId, isActive])
+  @@index([sellerId, status])
   @@index([userId])
   @@map("seller_team_members")
+}
+
+// Seller presence tracking (online/away/offline)
+model SellerPresence {
+  sellerId     String   @map("seller_id")
+  userId       String   @map("user_id")
+  lastSeenAt   DateTime @map("last_seen_at")
+  lastActiveAt DateTime? @map("last_active_at")
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sellerId, userId])
+  @@index([sellerId])
+  @@map("seller_presence")
+}
+
+// Pending team invitations
+model SellerInvite {
+  id         String         @id @default(uuid())
+  sellerId   String         @map("seller_id")
+  email      String
+  role       SellerTeamRole
+  tokenHash  String         @unique @map("token_hash")
+  expiresAt  DateTime       @map("expires_at")
+  acceptedAt DateTime?      @map("accepted_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, email])
+  @@index([tokenHash])
+  @@map("seller_invites")
 }
 
 model Category {

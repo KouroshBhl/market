@@ -704,3 +704,85 @@ Seller team assignment is a **separate workflow** for internal order management,
 | ------ | ------------------------------ | ------------------------------ |
 | GET    | `/settings/platform-fee`       | Get current platform fee (bps) |
 | PATCH  | `/admin/settings/platform-fee` | Update platform fee (admin)    |
+
+---
+
+## Seller Team & Access Control (RBAC)
+
+### Design Decisions
+
+- **Multi-tenant**: Each Seller (SellerProfile) is an organization. A User can belong to multiple Sellers via SellerTeamMember.
+- **Fixed roles only**: OWNER, ADMIN, OPS, CATALOG, SUPPORT — no custom roles, no per-user permission checkboxes.
+- **No global user roles for seller access**: The `UserRole` enum (BUYER/SELLER/ADMIN) is for platform-level concerns. Seller team access is always scoped to `(user_id, seller_id)` via SellerTeamMember.
+- **Backend enforcement only**: Frontend checks are convenience for UI; all actual authorization happens in NestJS guards.
+- **Single `can()` helper**: All permission checks go through `can(role, permission)` in `apps/api/src/auth/permissions.ts`.
+
+### Role → Permission Matrix
+
+| Permission        | OWNER | ADMIN | OPS | CATALOG | SUPPORT |
+|-------------------|:-----:|:-----:|:---:|:-------:|:-------:|
+| orders.manage     |   ✓   |   ✓   |  ✓  |         |         |
+| orders.read       |   ✓   |   ✓   |  ✓  |         |    ✓    |
+| offers.manage     |   ✓   |   ✓   |     |    ✓    |         |
+| products.manage   |   ✓   |   ✓   |     |    ✓    |         |
+| keys.manage       |   ✓   |   ✓   |     |    ✓    |         |
+| team.manage       |   ✓   |   ✓   |     |         |         |
+| payouts.manage    |   ✓   |       |     |         |         |
+
+### Role Constraints
+
+- Owner cannot be removed or downgraded by anyone.
+- Only owner can promote to admin.
+- Admin cannot promote to admin or owner.
+- Nobody can be invited as or promoted to owner.
+
+### Guard Stack for Seller-Scoped Endpoints
+
+```
+AuthGuard → SellerMemberGuard → SellerPermissionGuard
+```
+
+1. **AuthGuard**: Verifies JWT, attaches `request.user`.
+2. **SellerMemberGuard**: Reads `:sellerId` from route, validates ACTIVE membership, attaches `request.sellerMember`.
+3. **SellerPermissionGuard**: Reads `@RequireSellerPermission()` decorator, calls `can(role, permission)`.
+
+### Seller Team API
+
+| Method | Path                                     | Permission    | Description             |
+|--------|------------------------------------------|---------------|-------------------------|
+| GET    | `/seller/:sellerId/members`              | (membership)  | List members + invites  |
+| POST   | `/seller/:sellerId/invite`               | team.manage   | Send invite             |
+| PATCH  | `/seller/:sellerId/members/:userId/role` | team.manage   | Change member role      |
+| DELETE | `/seller/:sellerId/members/:userId`      | team.manage   | Remove member           |
+| DELETE | `/seller/:sellerId/invites/:inviteId`    | team.manage   | Revoke pending invite   |
+| POST   | `/invite/accept`                         | (authed)      | Accept invite via token |
+| GET    | `/user/memberships`                      | (authed)      | Seller switcher data    |
+
+### Presence System
+
+Real-time team presence with 3 statuses computed server-side:
+
+| Status  | Rule                                            |
+|---------|-------------------------------------------------|
+| ONLINE  | `last_seen_at` ≤ 90s ago AND `last_active_at` ≤ 2m ago |
+| AWAY    | `last_seen_at` ≤ 90s ago AND `last_active_at` > 2m ago |
+| OFFLINE | `last_seen_at` > 90s ago                        |
+
+**Database**: `seller_presence(seller_id, user_id, last_seen_at, last_active_at)` — composite PK, scoped per seller.
+
+**Heartbeat**: Frontend sends `POST /seller/:sellerId/presence/heartbeat` every 30s with `{ lastActiveAt? }`. Backend upserts `last_seen_at = now()` and conditionally updates `last_active_at`. Rate-limited to 1 write per 10s.
+
+**Activity tracking**: Client listens to `keydown`, `pointerdown`, `scroll`, `mousemove` (throttled to 5s). Only sends `lastActiveAt` if activity within the last 2 minutes. Pauses when tab is hidden.
+
+**Presence list**: `GET /seller/:sellerId/presence` returns all members' status, polled every 12s on the team page.
+
+| Method | Path                                        | Permission   | Description          |
+|--------|---------------------------------------------|--------------|----------------------|
+| POST   | `/seller/:sellerId/presence/heartbeat`      | (membership) | Send heartbeat       |
+| GET    | `/seller/:sellerId/presence`                | (membership) | Get presence list    |
+
+### Future Expansion (TODO)
+
+- **Per-member permission overrides**: Add `permissionOverrides` column to SellerTeamMember. Merge with role defaults in `can()`. No other call-sites change.
+- **WebSocket presence**: Replace polling with real-time WebSocket events for instant status updates.
+- **Migrate existing seller-scoped endpoints**: Move from `?sellerId=` query param to `/seller/:sellerId/` route pattern, guarded by SellerMemberGuard + SellerPermissionGuard.

@@ -7,11 +7,28 @@ import { GoogleStrategy } from './google.strategy';
 import { AuthGuard } from './auth.guard';
 import { RolesGuard } from './roles.guard';
 import { EmailVerifiedGuard } from './email-verified.guard';
+import { SellerMemberGuard } from './seller-member.guard';
+import { SellerPermissionGuard } from './seller-permission.guard';
 
 @Module({
   imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'google' })],
   controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy, AuthGuard, RolesGuard, EmailVerifiedGuard],
-  exports: [AuthService, AuthGuard, RolesGuard, EmailVerifiedGuard],
+  providers: [
+    AuthService,
+    GoogleStrategy,
+    AuthGuard,
+    RolesGuard,
+    EmailVerifiedGuard,
+    SellerMemberGuard,
+    SellerPermissionGuard,
+  ],
+  exports: [
+    AuthService,
+    AuthGuard,
+    RolesGuard,
+    EmailVerifiedGuard,
+    SellerMemberGuard,
+    SellerPermissionGuard,
+  ],
 })
 export class AuthModule {}

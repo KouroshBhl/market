@@ -46,6 +46,8 @@ async function bootstrap() {
     .addTag('Offers', 'Seller offer management endpoints')
     .addTag('Key Pools', 'Auto-Key pool management (seller-only)')
     .addTag('Orders', 'Order and fulfillment endpoints')
+    .addTag('Seller Team', 'Seller team management, invites, and RBAC')
+    .addTag('Presence', 'Real-time team presence (online/away/offline)')
     .addTag('Health', 'Health check endpoints')
     .addTag('Version', 'Version information endpoints')
     .addServer('http://localhost:4000', 'Development server')

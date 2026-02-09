@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
+  // Support ?next= redirect after login (e.g. invite accept flow)
+  const nextUrl = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("next")
+    : null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -25,7 +30,11 @@ export default function LoginPage() {
     try {
       await apiLogin(email, password);
       const me = await refreshUser();
-      if (me && typeof me === "object" && "sellerId" in me && !me.sellerId) {
+
+      // Redirect to ?next= if present, otherwise default flow
+      if (nextUrl) {
+        router.push(nextUrl);
+      } else if (me && typeof me === "object" && "sellerId" in me && !me.sellerId) {
         router.push("/setup");
       } else {
         router.push("/");
@@ -125,7 +134,7 @@ export default function LoginPage() {
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link
-            href="/auth/signup"
+            href={nextUrl ? `/auth/signup?next=${encodeURIComponent(nextUrl)}` : "/auth/signup"}
             className="font-medium text-foreground underline underline-offset-4"
           >
             Sign up

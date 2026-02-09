@@ -152,7 +152,14 @@ export class AuthService {
   async getMe(userId: string): Promise<AuthUser> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { sellerProfile: true },
+      include: {
+        sellerProfile: true,
+        sellerTeamMemberships: {
+          where: { status: 'ACTIVE' },
+          include: { seller: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     if (!user) {
@@ -168,6 +175,11 @@ export class AuthService {
       hasPassword: !!user.passwordHash,
       isEmailVerified: !!user.emailVerifiedAt,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      memberships: user.sellerTeamMemberships.map((m) => ({
+        sellerId: m.sellerId,
+        sellerName: m.seller.displayName,
+        role: m.role as 'OWNER' | 'ADMIN' | 'OPS' | 'CATALOG' | 'SUPPORT',
+      })),
     };
   }
 
@@ -191,18 +203,30 @@ export class AuthService {
     await this.emailService.sendVerificationEmail(email, rawToken, userId);
   }
 
-  async verifyEmail(rawToken: string): Promise<{ success: boolean }> {
+  async verifyEmail(rawToken: string): Promise<{ success: boolean; alreadyVerified?: boolean }> {
     const tokenHash = this.hashToken(rawToken);
 
     const token = await prisma.emailVerificationToken.findUnique({
       where: { tokenHash },
     });
 
-    if (!token || token.usedAt || token.expiresAt < new Date()) {
+    if (!token || token.expiresAt < new Date()) {
       return { success: false };
     }
 
-    // Mark token as used and verify user's email in one transaction
+    // Idempotent: if token was already used, check if user is verified
+    if (token.usedAt) {
+      const user = await prisma.user.findUnique({ where: { id: token.userId } });
+      if (user?.emailVerifiedAt) {
+        return { success: true, alreadyVerified: true };
+      }
+      return { success: false };
+    }
+
+    // First verification — mark token + verify user in transaction
+    const user = await prisma.user.findUnique({ where: { id: token.userId } });
+    const wasAlreadyVerified = !!user?.emailVerifiedAt;
+
     await prisma.$transaction([
       prisma.emailVerificationToken.update({
         where: { id: token.id },
@@ -214,7 +238,16 @@ export class AuthService {
       }),
     ]);
 
-    return { success: true };
+    // Send confirmation email only on first-ever verification (not re-verify)
+    if (!wasAlreadyVerified && user) {
+      this.emailService
+        .sendVerifiedConfirmationEmail(user.email)
+        .catch((err) => {
+          this.logger.warn(`Failed to send verification confirmation to ${user.email}: ${err?.message ?? err}`);
+        });
+    }
+
+    return { success: true, alreadyVerified: false };
   }
 
   async resendVerification(userId: string): Promise<{ ok: true }> {
@@ -371,11 +404,26 @@ export class AuthService {
       throw new ConflictException('Seller profile already exists');
     }
 
-    const profile = await prisma.sellerProfile.create({
-      data: {
-        userId,
-        displayName,
-      },
+    // Create seller profile + OWNER membership in a transaction
+    const profile = await prisma.$transaction(async (tx) => {
+      const p = await tx.sellerProfile.create({
+        data: {
+          userId,
+          displayName,
+        },
+      });
+
+      // Auto-create the OWNER team membership
+      await tx.sellerTeamMember.create({
+        data: {
+          sellerId: p.id,
+          userId,
+          role: 'OWNER',
+          status: 'ACTIVE',
+        },
+      });
+
+      return p;
     });
 
     return {

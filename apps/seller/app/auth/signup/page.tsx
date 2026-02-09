@@ -18,6 +18,11 @@ export default function SignupPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
+  // Support ?next= redirect after signup (e.g. invite accept flow)
+  const nextUrl = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("next")
+    : null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -37,7 +42,8 @@ export default function SignupPage() {
     try {
       await apiSignup(email, password);
       await refreshUser();
-      router.push("/setup");
+      // Redirect to ?next= if present, otherwise default to setup
+      router.push(nextUrl || "/setup");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {
@@ -149,7 +155,7 @@ export default function SignupPage() {
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link
-            href="/auth/login"
+            href={nextUrl ? `/auth/login?next=${encodeURIComponent(nextUrl)}` : "/auth/login"}
             className="font-medium text-foreground underline underline-offset-4"
           >
             Sign in

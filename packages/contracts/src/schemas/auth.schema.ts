@@ -124,6 +124,12 @@ export const AuthTokensResponseSchema = z
 
 export type AuthTokensResponse = z.infer<typeof AuthTokensResponseSchema>;
 
+export const AuthUserMembershipSchema = z.object({
+  sellerId: z.string().uuid(),
+  sellerName: z.string(),
+  role: z.enum(['OWNER', 'ADMIN', 'OPS', 'CATALOG', 'SUPPORT']),
+});
+
 export const AuthUserSchema = z
   .object({
     id: z.string().uuid(),
@@ -134,6 +140,8 @@ export const AuthUserSchema = z
     hasPassword: z.boolean(),
     isEmailVerified: z.boolean(),
     emailVerifiedAt: z.string().datetime().nullable(),
+    /** All seller orgs this user belongs to (for seller switcher) */
+    memberships: z.array(AuthUserMembershipSchema).default([]),
   })
   .openapi('AuthUser');
 

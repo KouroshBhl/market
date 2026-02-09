@@ -23,7 +23,7 @@ export function useAuth() {
   return React.useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/auth/callback", "/auth/verified"];
+const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/auth/callback", "/auth/verified", "/invite/accept"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<AuthUser | null>(null);
@@ -88,7 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // If on a public path and authenticated with a seller profile, go to home
-        if (isPublicPath && me.sellerId) {
+        // Exception: invite accept page — let the page handle acceptance first
+        const isInviteFlow = pathname.startsWith("/invite/accept");
+
+        if (isPublicPath && me.sellerId && !isInviteFlow) {
           router.push("/");
         }
       } catch {

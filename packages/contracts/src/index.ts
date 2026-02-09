@@ -72,8 +72,21 @@ import {
 
 import {
   SellerTeamRoleSchema,
+  SellerPermissionSchema,
+  MemberStatusSchema,
   SellerTeamMemberSchema,
+  SellerInviteSchema,
+  SellerMembershipSchema,
   GetSellerTeamResponseSchema,
+  InviteMemberRequestSchema,
+  InviteMemberResponseSchema,
+  ChangeRoleRequestSchema,
+  ChangeRoleResponseSchema,
+  RemoveMemberResponseSchema,
+  GetMembershipsResponseSchema,
+  RevokeInviteResponseSchema,
+  AcceptInviteRequestSchema,
+  AcceptInviteResponseSchema,
 } from './schemas/seller-team.schema';
 
 import {
@@ -172,8 +185,21 @@ registry.register('ReassignOrderResponse', ReassignOrderResponseSchema);
 
 // Seller Team schemas
 registry.register('SellerTeamRole', SellerTeamRoleSchema);
+registry.register('SellerPermission', SellerPermissionSchema);
+registry.register('MemberStatus', MemberStatusSchema);
 registry.register('SellerTeamMember', SellerTeamMemberSchema);
+registry.register('SellerInvite', SellerInviteSchema);
+registry.register('SellerMembership', SellerMembershipSchema);
 registry.register('GetSellerTeamResponse', GetSellerTeamResponseSchema);
+registry.register('InviteMemberRequest', InviteMemberRequestSchema);
+registry.register('InviteMemberResponse', InviteMemberResponseSchema);
+registry.register('ChangeRoleRequest', ChangeRoleRequestSchema);
+registry.register('ChangeRoleResponse', ChangeRoleResponseSchema);
+registry.register('RemoveMemberResponse', RemoveMemberResponseSchema);
+registry.register('GetMembershipsResponse', GetMembershipsResponseSchema);
+registry.register('RevokeInviteResponse', RevokeInviteResponseSchema);
+registry.register('AcceptInviteRequest', AcceptInviteRequestSchema);
+registry.register('AcceptInviteResponse', AcceptInviteResponseSchema);
 
 // Requirement schemas
 registry.register('RequirementFieldType', RequirementFieldTypeSchema);
