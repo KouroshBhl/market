@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { SettingsModule } from './settings/settings.module';
 import { RequirementsModule } from './requirements/requirements.module';
 import { SellerTeamModule } from './seller-team/seller-team.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SellerTeamModule } from './seller-team/seller-team.module';
       validate: validateEnv,
     }),
     CryptoModule, // Global module for encryption
+    AuthModule,
     HealthModule,
     VersionModule,
     CategoriesModule,

@@ -7,6 +7,14 @@ export const envSchema = z.object({
   APP_VERSION: z.string().default('0.0.1'),
   DATABASE_URL: z.string().url(),
   CORS_ORIGINS: z.string().transform((val) => val.split(',')).default('http://localhost:3000'),
+  // Auth
+  JWT_ACCESS_SECRET: z.string().default('dev-access-secret-change-me'),
+  JWT_REFRESH_SECRET: z.string().default('dev-refresh-secret-change-me'),
+  // Google OAuth (optional in dev)
+  GOOGLE_CLIENT_ID: z.string().default('not-set'),
+  GOOGLE_CLIENT_SECRET: z.string().default('not-set'),
+  GOOGLE_CALLBACK_URL: z.string().default('http://localhost:4000/auth/google/callback'),
+  SELLER_APP_URL: z.string().default('http://localhost:3002'),
 });
 
 export type Env = z.infer<typeof envSchema>;

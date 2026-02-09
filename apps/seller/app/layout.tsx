@@ -3,8 +3,9 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { QueryProvider } from '@/components/query-provider';
-import { SidebarProvider, SidebarInset, Toaster } from '@workspace/ui';
-import { AppSidebar } from '@/components/ui/app-sidebar';
+import { AuthProvider } from '@/components/auth-provider';
+import { Toaster } from '@workspace/ui';
+
 const fontSans = Geist({
   subsets: ['latin'],
   variable: '--font-sans',
@@ -26,12 +27,11 @@ export default function RootLayout({
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
       >
         <QueryProvider>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <Providers>{children}</Providers>
-            </SidebarInset>
-          </SidebarProvider>
+          <Providers>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </Providers>
           <Toaster />
         </QueryProvider>
       </body>

@@ -2,10 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable cookie parsing for refresh token cookies
+  app.use(cookieParser());
 
   // Enable validation pipe for DTO validation
   app.useGlobalPipes(
@@ -33,6 +38,8 @@ async function bootstrap() {
     .setTitle(configService.get<string>('app.name') || 'Market API')
     .setDescription('Market monorepo API - Auto-generated documentation')
     .setVersion(configService.get<string>('app.version') || '1.0.0')
+    .addBearerAuth()
+    .addTag('Auth', 'Authentication and authorization endpoints')
     .addTag('Categories', 'Category management endpoints')
     .addTag('Products', 'Product management endpoints (Legacy)')
     .addTag('Catalog', 'Marketplace catalog endpoints')

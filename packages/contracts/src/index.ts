@@ -90,6 +90,21 @@ import {
   RequirementsPayloadSchema,
 } from './schemas/requirement.schema';
 
+import {
+  UserRoleSchema,
+  SignupRequestSchema,
+  LoginRequestSchema,
+  RefreshRequestSchema,
+  ExchangeCodeRequestSchema,
+  AuthTokensResponseSchema,
+  AuthUserSchema,
+  AuthMeResponseSchema,
+  LogoutResponseSchema,
+  SellerSetupRequestSchema,
+  SellerProfileSchema,
+  AuthErrorSchema,
+} from './schemas/auth.schema';
+
 // Register schemas
 registry.register('HealthResponse', HealthResponseSchema);
 registry.register('VersionResponse', VersionResponseSchema);
@@ -167,3 +182,17 @@ registry.register('UpdateRequirementTemplate', UpdateRequirementTemplateSchema);
 registry.register('RequirementTemplateAdminResponse', RequirementTemplateAdminResponseSchema);
 registry.register('GetRequirementTemplatesResponse', GetRequirementTemplatesResponseSchema);
 registry.register('RequirementsPayload', RequirementsPayloadSchema);
+
+// Auth schemas
+registry.register('UserRole', UserRoleSchema);
+registry.register('SignupRequest', SignupRequestSchema);
+registry.register('LoginRequest', LoginRequestSchema);
+registry.register('RefreshRequest', RefreshRequestSchema);
+registry.register('ExchangeCodeRequest', ExchangeCodeRequestSchema);
+registry.register('AuthTokensResponse', AuthTokensResponseSchema);
+registry.register('AuthUser', AuthUserSchema);
+registry.register('AuthMeResponse', AuthMeResponseSchema);
+registry.register('LogoutResponse', LogoutResponseSchema);
+registry.register('SellerSetupRequest', SellerSetupRequestSchema);
+registry.register('SellerProfile', SellerProfileSchema);
+registry.register('AuthError', AuthErrorSchema);

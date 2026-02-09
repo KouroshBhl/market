@@ -4,7 +4,10 @@ module.exports = (options, webpack) => {
   return {
     ...options,
     entry: './src/main.ts',
-    externals: [],
+    externals: [
+      // bcrypt has native bindings that can't be bundled by webpack
+      { bcrypt: 'commonjs bcrypt' },
+    ],
     output: {
       filename: 'main.js',
       path: path.resolve(__dirname, 'dist'),

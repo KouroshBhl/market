@@ -14,12 +14,17 @@ import type {
   InvalidateKeyResponse,
   PlatformFeeConfig,
 } from '@workspace/contracts';
+import { authedFetch } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-export const SELLER_ID = '00000000-0000-0000-0000-000000000001'; // Hardcoded for MVP
+
+// SELLER_ID is no longer hardcoded — it comes from the auth user's seller profile.
+// For endpoints that still need sellerId as a query param, we get it from the auth context.
+// But as we migrate endpoints to use Bearer auth, this becomes unnecessary.
+export const SELLER_ID = '00000000-0000-0000-0000-000000000001'; // Legacy fallback
 
 export async function getProducts(): Promise<OfferWithDetails[]> {
-  const response = await fetch(`${API_URL}/seller/offers?sellerId=${SELLER_ID}`, {
+  const response = await authedFetch(`${API_URL}/seller/offers?sellerId=${SELLER_ID}`, {
     cache: 'no-store',
   });
 
@@ -40,7 +45,7 @@ export async function updateOfferStatus(
   offerId: string,
   payload: UpdateOfferStatus
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/offers/${offerId}/status`, {
+  const response = await authedFetch(`${API_URL}/offers/${offerId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -55,7 +60,7 @@ export async function updateOffer(
   offerId: string,
   payload: UpdateOffer
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/offers/${offerId}`, {
+  const response = await authedFetch(`${API_URL}/offers/${offerId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -75,7 +80,7 @@ export async function updateOfferPricing(
 }
 
 export async function saveProductDraft(data: SaveProductDraft): Promise<ProductDraft> {
-  const response = await fetch(`${API_URL}/products/draft`, {
+  const response = await authedFetch(`${API_URL}/products/draft`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,7 +97,7 @@ export async function saveProductDraft(data: SaveProductDraft): Promise<ProductD
 }
 
 export async function publishProduct(id: string): Promise<Product> {
-  const response = await fetch(`${API_URL}/products/${id}/publish`, {
+  const response = await authedFetch(`${API_URL}/products/${id}/publish`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -114,7 +119,7 @@ export async function publishProduct(id: string): Promise<Product> {
 export async function getKeyPoolByOffer(
   offerId: string
 ): Promise<KeyPoolWithCounts | null> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/by-offer/${offerId}?sellerId=${SELLER_ID}`
   );
   if (response.status === 404) {
@@ -127,7 +132,7 @@ export async function getKeyPoolByOffer(
 }
 
 export async function createKeyPool(offerId: string): Promise<KeyPoolWithCounts> {
-  const response = await fetch(`${API_URL}/key-pools?sellerId=${SELLER_ID}`, {
+  const response = await authedFetch(`${API_URL}/key-pools?sellerId=${SELLER_ID}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ offerId }),
@@ -140,7 +145,7 @@ export async function createKeyPool(offerId: string): Promise<KeyPoolWithCounts>
 }
 
 export async function getKeyPoolStats(poolId: string): Promise<KeyPoolStats> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/stats?sellerId=${SELLER_ID}`
   );
   if (!response.ok) {
@@ -158,7 +163,7 @@ export async function listKeys(
   if (options.page) params.set('page', String(options.page));
   if (options.pageSize) params.set('pageSize', String(options.pageSize));
 
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/keys?${params.toString()}`
   );
   if (!response.ok) {
@@ -171,7 +176,7 @@ export async function uploadKeys(
   poolId: string,
   payload: { keys?: string[]; rawText?: string }
 ): Promise<UploadKeysResponse> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/keys/upload?sellerId=${SELLER_ID}`,
     {
       method: 'POST',
@@ -191,7 +196,7 @@ export async function editKey(
   keyId: string,
   newCode: string
 ): Promise<EditKeyResponse> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/keys/${keyId}?sellerId=${SELLER_ID}`,
     {
       method: 'PATCH',
@@ -210,7 +215,7 @@ export async function invalidateKey(
   poolId: string,
   keyId: string
 ): Promise<InvalidateKeyResponse> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/keys/${keyId}?sellerId=${SELLER_ID}`,
     { method: 'DELETE' }
   );
@@ -225,7 +230,7 @@ export async function revealKey(
   poolId: string,
   keyId: string
 ): Promise<RevealKeyResponse> {
-  const response = await fetch(
+  const response = await authedFetch(
     `${API_URL}/key-pools/${poolId}/keys/${keyId}/reveal?sellerId=${SELLER_ID}`,
     { method: 'POST' }
   );
