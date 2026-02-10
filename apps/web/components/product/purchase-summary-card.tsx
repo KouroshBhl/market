@@ -77,13 +77,19 @@ export function PurchaseSummaryCard({
         </div>
       </div>
 
-      {/* Price + delivery */}
+      {/* Price + seller + delivery */}
       {bestOffer ? (
         <>
           <div className="space-y-1">
             <p className="text-2xl font-bold text-foreground">
               {buyerTotalCents !== null &&
                 formatMoney(buyerTotalCents, currency)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Sold by{" "}
+              <span className="font-medium text-foreground">
+                {bestOffer.sellerName}
+              </span>
             </p>
           </div>
 

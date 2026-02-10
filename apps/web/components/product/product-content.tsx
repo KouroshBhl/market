@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Badge, Separator, Switch, Label } from "@workspace/ui";
+import { Badge, Button, Separator, Switch, Label } from "@workspace/ui";
 import { Zap } from "lucide-react";
 import type { ProductDetail, VariantSummary, PublicOffer } from "@/lib/api";
 import type { Locale } from "@/lib/i18n";
@@ -11,6 +11,10 @@ import { formatMoney, type Currency } from "@/lib/currency";
 import { PurchaseSummaryCard } from "./purchase-summary-card";
 import { VariantPicker } from "./variant-picker";
 import { OffersSection } from "./offers-section";
+
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
 
 function formatDuration(days: number): string {
   if (days <= 1) return "1 Day";
@@ -20,12 +24,23 @@ function formatDuration(days: number): string {
   return `${days} Days`;
 }
 
+function variantLabel(v: VariantSummary): string {
+  const parts: string[] = [v.region];
+  if (v.durationDays !== null) parts.push(formatDuration(v.durationDays));
+  if (v.edition) parts.push(v.edition);
+  return parts.join(" · ");
+}
+
+/* -------------------------------------------------------------------------- */
+/*  ProductContent — client island                                            */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Client island that manages:
- * - Hero section with 2 columns (product info left, sticky card right)
+ * Manages:
+ * - Hero section (product info left, sticky purchase card right)
  * - Offers section below (full width)
- * - Instant delivery filter
- * - URL state sync for bookmarkable selections
+ * - URL state sync for region, duration, offer, instant
+ * - Single source of truth for selected offer
  */
 export function ProductContent({
   product,
@@ -47,24 +62,39 @@ export function ProductContent({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ── State: initialized from server-resolved props (no flash) ─────────
-  // The server component already resolved the variant from URL search
-  // params and fetched the matching offers. We initialize from those props
-  // so the first paint is always correct.
-  const [selectedVariantId, setSelectedVariantId] = React.useState(initialVariantId);
+  /* ── Refs for scroll targets ──────────────────────────────────────────── */
+  const variantPickerRef = React.useRef<HTMLDivElement>(null);
+  const offersSectionRef = React.useRef<HTMLDivElement>(null);
+
+  /* ── Core state (initialized from server-resolved props — no flash) ──── */
+  const [selectedVariantId, setSelectedVariantId] =
+    React.useState(initialVariantId);
   const [offers, setOffers] = React.useState(initialOffers);
-  const [platformFeeBps, setPlatformFeeBps] = React.useState(initialPlatformFeeBps);
+  const [platformFeeBps, setPlatformFeeBps] = React.useState(
+    initialPlatformFeeBps,
+  );
   const [instantOnly, setInstantOnly] = React.useState(
     searchParams.get("instant") === "1",
   );
   const [loading, setLoading] = React.useState(false);
 
-  const selected = variants.find((v) => v.id === selectedVariantId) ?? variants[0];
+  // Single source of truth for selected offer (Task B)
+  const [selectedOfferId, setSelectedOfferId] = React.useState<string | null>(
+    searchParams.get("offer"),
+  );
+
+  // Variant picker highlight animation (Task A)
+  const [variantHighlight, setVariantHighlight] = React.useState(false);
+
+  /* ── Derived values ────────────────────────────────────────────────────── */
+  const selected =
+    variants.find((v) => v.id === selectedVariantId) ?? variants[0];
 
   const inStockOffers = offers.filter((o) => o.inStock);
-  const hasInstantDelivery = inStockOffers.some((o) => o.deliveryType === "AUTO_KEY");
+  const hasInstantDelivery = inStockOffers.some(
+    (o) => o.deliveryType === "AUTO_KEY",
+  );
 
-  // Apply instant filter
   const filteredOffers = instantOnly
     ? inStockOffers.filter((o) => o.deliveryType === "AUTO_KEY")
     : inStockOffers;
@@ -73,41 +103,32 @@ export function ProductContent({
     (a, b) => a.priceAmountCents - b.priceAmountCents,
   );
 
-  // Best offer: prioritize URL offer param if valid, otherwise cheapest
-  const offerParam = searchParams.get("offer");
-  let bestOffer: PublicOffer | null = null;
-  if (offerParam) {
-    bestOffer = sortedByPrice.find((o) => o.id === offerParam) ?? sortedByPrice[0] ?? null;
-  } else {
-    bestOffer = sortedByPrice[0] ?? null;
-  }
+  // Selected offer: explicit selection OR cheapest as default
+  const selectedOffer: PublicOffer | null = selectedOfferId
+    ? (sortedByPrice.find((o) => o.id === selectedOfferId) ??
+      sortedByPrice[0] ??
+      null)
+    : (sortedByPrice[0] ?? null);
 
-  const lowestPrice = filteredOffers.length > 0
-    ? Math.min(
-        ...filteredOffers.map(
-          (o) =>
-            o.priceAmountCents +
-            Math.round((o.priceAmountCents * platformFeeBps) / 10000),
-        ),
-      )
-    : null;
+  const lowestPrice =
+    filteredOffers.length > 0
+      ? Math.min(
+          ...filteredOffers.map(
+            (o) =>
+              o.priceAmountCents +
+              Math.round((o.priceAmountCents * platformFeeBps) / 10000),
+          ),
+        )
+      : null;
 
-  const defaultCurrency = (filteredOffers[0]?.currency as Currency | undefined) ?? "USD";
+  const defaultCurrency =
+    (filteredOffers[0]?.currency as Currency | undefined) ?? "USD";
 
   const categoryHref = product.category.parent
     ? `/c/${product.category.parent.slug}/${product.category.slug}`
     : `/c/${product.category.slug}`;
 
-  const shortDesc = product.description
-    ? product.description.length > 200
-      ? product.description.slice(0, 200).trimEnd() + "…"
-      : product.description
-    : null;
-
-  // ── Sync URL on mount: correct params if server applied a fallback ────
-  // If the URL said ?region=EU&duration=30 but that variant doesn't exist,
-  // the server resolved to a fallback (e.g. EU+60D). We correct the URL
-  // to match what the user actually sees, using replaceState (no reload).
+  /* ── URL sync on mount (correct params if server applied fallback) ───── */
   React.useEffect(() => {
     const variant = variants.find((v) => v.id === initialVariantId);
     if (!variant) return;
@@ -116,15 +137,14 @@ export function ProductContent({
     const region = params.get("region");
     const duration = params.get("duration");
 
-    // Only correct if URL already has variant params
     if (!region && !duration) return;
 
-    // Ensure URL fully describes the resolved variant
     let needsCorrection = false;
     if (region && variant.region !== region) needsCorrection = true;
-    if (duration && variant.durationDays?.toString() !== duration) needsCorrection = true;
-    // If region is set but duration is missing, add it for bookmarkability
-    if (region && !duration && variant.durationDays !== null) needsCorrection = true;
+    if (duration && variant.durationDays?.toString() !== duration)
+      needsCorrection = true;
+    if (region && !duration && variant.durationDays !== null)
+      needsCorrection = true;
 
     if (needsCorrection) {
       params.set("region", variant.region);
@@ -142,7 +162,7 @@ export function ProductContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch offers when variant changes (skip first render — server already fetched)
+  /* ── Fetch offers when variant changes (skip first — server already fetched) */
   const isFirstRender = React.useRef(true);
 
   React.useEffect(() => {
@@ -177,7 +197,7 @@ export function ProductContent({
     };
   }, [selectedVariantId]);
 
-  // Update URL when selection changes
+  /* ── URL update helper ─────────────────────────────────────────────── */
   const updateUrl = React.useCallback(
     (updates: {
       variantId?: string;
@@ -185,8 +205,7 @@ export function ProductContent({
       instant?: boolean;
     }) => {
       const params = new URLSearchParams(searchParams.toString());
-      
-      // Update variant params
+
       if (updates.variantId !== undefined) {
         const variant = variants.find((v) => v.id === updates.variantId);
         if (variant) {
@@ -198,8 +217,7 @@ export function ProductContent({
           }
         }
       }
-      
-      // Update offer param
+
       if (updates.offerId !== undefined) {
         if (updates.offerId) {
           params.set("offer", updates.offerId);
@@ -207,8 +225,7 @@ export function ProductContent({
           params.delete("offer");
         }
       }
-      
-      // Update instant filter
+
       if (updates.instant !== undefined) {
         if (updates.instant) {
           params.set("instant", "1");
@@ -216,35 +233,55 @@ export function ProductContent({
           params.delete("instant");
         }
       }
-      
+
       const newUrl = params.toString() ? `?${params.toString()}` : "";
       router.replace(`${window.location.pathname}${newUrl}`, { scroll: false });
     },
     [router, searchParams, variants],
   );
 
-  // Handle variant change
+  /* ── Handlers ──────────────────────────────────────────────────────── */
   const handleVariantChange = (variantId: string) => {
     setSelectedVariantId(variantId);
-    // Reset instant filter when variant changes
+    setSelectedOfferId(null); // clear stale offer selection
     setInstantOnly(false);
     updateUrl({ variantId, offerId: null, instant: false });
   };
 
-  // Handle instant filter toggle
   const handleInstantToggle = (checked: boolean) => {
     setInstantOnly(checked);
     updateUrl({ instant: checked });
   };
 
-  // Handle offer selection (when user clicks an offer card)
   const handleOfferSelect = (offerId: string) => {
+    setSelectedOfferId(offerId);
     updateUrl({ offerId });
+
+    // Task C: scroll to top of offers area if the user scrolled past it
+    if (offersSectionRef.current) {
+      const rect = offersSectionRef.current.getBoundingClientRect();
+      if (rect.top < 0) {
+        offersSectionRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }
   };
 
+  const handleScrollToVariants = () => {
+    variantPickerRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    setVariantHighlight(true);
+    setTimeout(() => setVariantHighlight(false), 1500);
+  };
+
+  /* ── Render ────────────────────────────────────────────────────────── */
   return (
     <div className="space-y-8">
-      {/* Hero section: 2-column layout (product info + sticky card) */}
+      {/* ─── Hero section: 2-column layout ─────────────────────────────── */}
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {/* Left column: Product image + info + variant picker */}
         <div className="flex-1 min-w-0 space-y-6">
@@ -278,15 +315,18 @@ export function ProductContent({
                 </Badge>
               </Link>
 
+              {/* Buyer-friendly stats (Task D: no raw admin text in hero) */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 <span>
                   {inStockOffers.length}{" "}
-                  {inStockOffers.length === 1 ? "seller" : "sellers"}
+                  {inStockOffers.length === 1 ? "offer" : "offers"} available
                 </span>
                 {lowestPrice !== null && (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>From {formatMoney(lowestPrice, defaultCurrency)}</span>
+                    <span>
+                      From {formatMoney(lowestPrice, defaultCurrency)}
+                    </span>
                   </>
                 )}
               </div>
@@ -297,12 +337,6 @@ export function ProductContent({
                   Instant delivery available
                 </p>
               )}
-
-              {shortDesc && (
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-prose">
-                  {shortDesc}
-                </p>
-              )}
             </div>
           </div>
 
@@ -310,11 +344,18 @@ export function ProductContent({
           {variants.length > 1 && (
             <>
               <Separator />
-              <VariantPicker
-                variants={variants}
-                selectedId={selectedVariantId}
-                onSelect={handleVariantChange}
-              />
+              <div
+                ref={variantPickerRef}
+                className={`transition-all duration-300 rounded-lg ${
+                  variantHighlight ? "ring-2 ring-primary/50 p-3 -m-3" : ""
+                }`}
+              >
+                <VariantPicker
+                  variants={variants}
+                  selectedId={selectedVariantId}
+                  onSelect={handleVariantChange}
+                />
+              </div>
             </>
           )}
         </div>
@@ -324,7 +365,7 @@ export function ProductContent({
           <PurchaseSummaryCard
             productId={productId}
             selectedVariant={selected ?? null}
-            bestOffer={bestOffer}
+            bestOffer={selectedOffer}
             platformFeeBps={platformFeeBps}
             locale={locale}
           />
@@ -333,9 +374,31 @@ export function ProductContent({
 
       <Separator />
 
-      {/* Offers section (full width) */}
-      <div className="space-y-6">
-        {/* Instant delivery filter (only show if instant offers exist) */}
+      {/* ─── Offers section (full width) ───────────────────────────────── */}
+      <div ref={offersSectionRef} className="space-y-6">
+        {/* Task A: Variant context label + Change action */}
+        {selected && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-sm text-muted-foreground">
+              Showing offers for{" "}
+              <span className="font-medium text-foreground">
+                {variantLabel(selected)}
+              </span>
+            </p>
+            {variants.length > 1 && (
+              <Button
+                variant="link"
+                size="sm"
+                className="text-xs h-auto p-0"
+                onClick={handleScrollToVariants}
+              >
+                Change
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Instant delivery filter */}
         {hasInstantDelivery && (
           <div className="flex items-center gap-2">
             <Switch
@@ -360,6 +423,7 @@ export function ProductContent({
           locale={locale}
           instantOnly={instantOnly}
           loading={loading}
+          selectedOfferId={selectedOffer?.id ?? null}
           onOfferSelect={handleOfferSelect}
         />
       </div>
@@ -369,7 +433,7 @@ export function ProductContent({
         <PurchaseSummaryCard
           productId={productId}
           selectedVariant={selected ?? null}
-          bestOffer={bestOffer}
+          bestOffer={selectedOffer}
           platformFeeBps={platformFeeBps}
           locale={locale}
         />

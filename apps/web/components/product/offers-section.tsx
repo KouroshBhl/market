@@ -31,6 +31,7 @@ export function OffersSection({
   locale,
   instantOnly,
   loading,
+  selectedOfferId,
   onOfferSelect,
 }: {
   productId: string;
@@ -40,6 +41,7 @@ export function OffersSection({
   locale: Locale;
   instantOnly: boolean;
   loading: boolean;
+  selectedOfferId: string | null;
   onOfferSelect?: (offerId: string) => void;
 }) {
   const [sort, setSort] = React.useState<SortMode>("price-asc");
@@ -113,14 +115,14 @@ export function OffersSection({
         </div>
       ) : sortedOffers.length > 0 ? (
         <div className="space-y-3">
-          {sortedOffers.map((offer, idx) => (
+          {sortedOffers.map((offer) => (
             <OfferCard
               key={offer.id}
               offer={offer}
               platformFeeBps={platformFeeBps}
               productId={productId}
               locale={locale}
-              isBest={idx === 0 && sort === "price-asc"}
+              isSelected={offer.id === selectedOfferId}
               onSelect={onOfferSelect}
             />
           ))}

@@ -18,14 +18,14 @@ export function OfferCard({
   platformFeeBps,
   productId,
   locale,
-  isBest,
+  isSelected,
   onSelect,
 }: {
   offer: PublicOffer;
   platformFeeBps: number;
   productId: string;
   locale: Locale;
-  isBest?: boolean;
+  isSelected?: boolean;
   onSelect?: (offerId: string) => void;
 }) {
   const buyerTotalCents =
@@ -50,10 +50,21 @@ export function OfferCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelected}
       className={`flex flex-col sm:flex-row gap-4 rounded-lg border p-4 cursor-pointer transition-colors hover:bg-accent/50 ${
-        isBest ? "border-primary bg-accent/30" : "border-border"
+        isSelected
+          ? "border-primary ring-1 ring-primary/40 bg-accent/30"
+          : "border-border"
       }`}
       onClick={() => onSelect?.(offer.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect?.(offer.id);
+        }
+      }}
     >
       {/* Seller info */}
       <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -96,7 +107,7 @@ export function OfferCard({
 
         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           <Button
-            variant={isBest ? "default" : "outline"}
+            variant={isSelected ? "default" : "outline"}
             size="sm"
             className="flex-1 sm:flex-initial"
           >
