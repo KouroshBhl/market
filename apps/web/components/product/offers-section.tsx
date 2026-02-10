@@ -1,22 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Button, Separator } from "@workspace/ui";
-import type {
-  VariantSummary,
-  PublicOffer,
-  OffersForVariantResponse,
-} from "@/lib/api";
+import { Button } from "@workspace/ui";
+import type { VariantSummary, PublicOffer } from "@/lib/api";
 import type { Locale } from "@/lib/i18n";
-import { VariantPicker } from "./variant-picker";
 import { OfferCard } from "./offer-card";
 
 type SortMode = "price-asc" | "price-desc" | "speed";
-
-const API_BASE =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")
-    : "http://localhost:4000";
 
 function formatDuration(days: number): string {
   if (days <= 1) return "1 Day";
@@ -35,72 +25,24 @@ function variantLabel(v: VariantSummary): string {
 
 export function OffersSection({
   productId,
-  variants,
-  initialVariantId,
-  initialOffers,
-  initialPlatformFeeBps,
+  selectedVariant,
+  offers,
+  platformFeeBps,
   locale,
-  onVariantChange,
-  onOffersUpdate,
+  instantOnly,
+  loading,
 }: {
   productId: string;
-  variants: VariantSummary[];
-  initialVariantId: string;
-  initialOffers: PublicOffer[];
-  initialPlatformFeeBps: number;
+  selectedVariant: VariantSummary | null;
+  offers: PublicOffer[];
+  platformFeeBps: number;
   locale: Locale;
-  onVariantChange: (id: string) => void;
-  onOffersUpdate: (offers: PublicOffer[], platformFeeBps: number) => void;
+  instantOnly: boolean;
+  loading: boolean;
 }) {
-  const [selectedVariantId, setSelectedVariantId] =
-    React.useState(initialVariantId);
-  const [offers, setOffers] = React.useState(initialOffers);
-  const [platformFeeBps, setPlatformFeeBps] = React.useState(
-    initialPlatformFeeBps,
-  );
   const [sort, setSort] = React.useState<SortMode>("price-asc");
-  const [loading, setLoading] = React.useState(false);
 
-  const selected =
-    variants.find((v) => v.id === selectedVariantId) ?? variants[0];
-
-  /* Fetch offers when variant changes */
-  const isFirstRender = React.useRef(true);
-  React.useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    fetch(`${API_BASE}/public/offers/by-variant/${selectedVariantId}`)
-      .then((r) => r.json())
-      .then((data: OffersForVariantResponse) => {
-        if (!cancelled) {
-          setOffers(data.offers);
-          setPlatformFeeBps(data.platformFeeBps);
-          onOffersUpdate(data.offers, data.platformFeeBps);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setOffers([]);
-          onOffersUpdate([], platformFeeBps);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedVariantId, onOffersUpdate, platformFeeBps]);
-
-  function handleVariantSelect(id: string) {
-    setSelectedVariantId(id);
-    onVariantChange(id);
-  }
-
-  /* Sort */
+  /* Sort offers */
   const sortedOffers = React.useMemo(() => {
     const list = [...offers];
     switch (sort) {
@@ -126,32 +68,18 @@ export function OffersSection({
     return list;
   }, [offers, sort]);
 
-  const inStockOffers = sortedOffers.filter((o) => o.inStock);
-
   return (
     <div className="space-y-6">
-      {/* Variant selector */}
-      {variants.length > 1 && (
-        <>
-          <VariantPicker
-            variants={variants}
-            selectedId={selectedVariantId}
-            onSelect={handleVariantSelect}
-          />
-          <Separator />
-        </>
-      )}
-
       {/* Offers header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-foreground">
           {loading
             ? "Loading offers…"
-            : selected
-              ? `Offers for ${variantLabel(selected)} (${inStockOffers.length})`
-              : `All Offers (${inStockOffers.length})`}
+            : selectedVariant
+              ? `Offers for ${variantLabel(selectedVariant)} (${sortedOffers.length})`
+              : `All Offers (${sortedOffers.length})`}
         </h2>
-        {!loading && inStockOffers.length > 0 && (
+        {!loading && sortedOffers.length > 0 && (
           <div className="flex gap-1">
             {(
               [
@@ -181,9 +109,9 @@ export function OffersSection({
             <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
-      ) : inStockOffers.length > 0 ? (
+      ) : sortedOffers.length > 0 ? (
         <div className="space-y-3">
-          {inStockOffers.map((offer, idx) => (
+          {sortedOffers.map((offer, idx) => (
             <OfferCard
               key={offer.id}
               offer={offer}
@@ -194,11 +122,20 @@ export function OffersSection({
             />
           ))}
         </div>
+      ) : instantOnly ? (
+        <div className="rounded-lg border border-border py-10 px-6 text-center space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            No instant delivery offers for this variant
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Try disabling the instant delivery filter above to see all offers.
+          </p>
+        </div>
       ) : (
         <div className="rounded-lg border border-border py-10 px-6 text-center space-y-2">
           <p className="text-sm font-medium text-foreground">
-            {selected
-              ? `No offers for ${variantLabel(selected)} yet`
+            {selectedVariant
+              ? `No offers for ${variantLabel(selectedVariant)} yet`
               : "No offers available"}
           </p>
           <p className="text-xs text-muted-foreground">

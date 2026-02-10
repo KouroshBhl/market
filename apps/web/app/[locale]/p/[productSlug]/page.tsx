@@ -7,7 +7,6 @@ import { isValidLocale, generateLocaleAlternates, type Locale } from "@/lib/i18n
 
 import { ProductStructuredData } from "@/components/product/structured-data";
 import { ProductBreadcrumb } from "@/components/product/product-breadcrumb";
-import { ProductHero } from "@/components/product/product-hero";
 import { ProductContent } from "@/components/product/product-content";
 import { TrustSection } from "@/components/product/trust-section";
 
@@ -89,17 +88,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           locale={locale}
         />
 
-        <ProductHero
-          product={product}
-          offers={offersData.offers}
-          platformFeeBps={offersData.platformFeeBps}
-          locale={locale}
-        />
-
-        <Separator />
-
         {defaultVariant ? (
           <ProductContent
+            product={product}
             productId={product.id}
             variants={product.variants}
             initialVariantId={defaultVariant.id}
