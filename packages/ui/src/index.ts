@@ -6,7 +6,6 @@ export * from './components/select';
 export * from './components/textarea';
 export * from './components/separator';
 export * from './components/sidebar';
-export * from '../../../apps/seller/components/ui/app-sidebar';
 export * from './components/nav-main';
 export * from './components/nav-projects';
 export * from './components/nav-user';
