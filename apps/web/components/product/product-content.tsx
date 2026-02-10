@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Badge, Separator, Switch, Label } from "@workspace/ui";
 import { Zap } from "lucide-react";
 import type { ProductDetail, VariantSummary, PublicOffer } from "@/lib/api";
-import type { Locale, localePath } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 import { formatMoney, type Currency } from "@/lib/currency";
 import { PurchaseSummaryCard } from "./purchase-summary-card";
 import { VariantPicker } from "./variant-picker";
@@ -25,6 +25,7 @@ function formatDuration(days: number): string {
  * - Hero section with 2 columns (product info left, sticky card right)
  * - Offers section below (full width)
  * - Instant delivery filter
+ * - URL state sync for bookmarkable selections
  */
 export function ProductContent({
   product,
@@ -45,24 +46,23 @@ export function ProductContent({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedVariantId, setSelectedVariantId] =
-    React.useState(initialVariantId);
+
+  // ── State: initialized from server-resolved props (no flash) ─────────
+  // The server component already resolved the variant from URL search
+  // params and fetched the matching offers. We initialize from those props
+  // so the first paint is always correct.
+  const [selectedVariantId, setSelectedVariantId] = React.useState(initialVariantId);
   const [offers, setOffers] = React.useState(initialOffers);
-  const [platformFeeBps, setPlatformFeeBps] = React.useState(
-    initialPlatformFeeBps,
+  const [platformFeeBps, setPlatformFeeBps] = React.useState(initialPlatformFeeBps);
+  const [instantOnly, setInstantOnly] = React.useState(
+    searchParams.get("instant") === "1",
   );
+  const [loading, setLoading] = React.useState(false);
 
-  // Instant delivery filter from URL
-  const instantOnlyParam = searchParams.get("instant");
-  const [instantOnly, setInstantOnly] = React.useState(instantOnlyParam === "1");
-
-  const selected =
-    variants.find((v) => v.id === selectedVariantId) ?? variants[0];
+  const selected = variants.find((v) => v.id === selectedVariantId) ?? variants[0];
 
   const inStockOffers = offers.filter((o) => o.inStock);
-  const hasInstantDelivery = inStockOffers.some(
-    (o) => o.deliveryType === "AUTO_KEY",
-  );
+  const hasInstantDelivery = inStockOffers.some((o) => o.deliveryType === "AUTO_KEY");
 
   // Apply instant filter
   const filteredOffers = instantOnly
@@ -72,7 +72,15 @@ export function ProductContent({
   const sortedByPrice = [...filteredOffers].sort(
     (a, b) => a.priceAmountCents - b.priceAmountCents,
   );
-  const bestOffer = sortedByPrice[0] ?? null;
+
+  // Best offer: prioritize URL offer param if valid, otherwise cheapest
+  const offerParam = searchParams.get("offer");
+  let bestOffer: PublicOffer | null = null;
+  if (offerParam) {
+    bestOffer = sortedByPrice.find((o) => o.id === offerParam) ?? sortedByPrice[0] ?? null;
+  } else {
+    bestOffer = sortedByPrice[0] ?? null;
+  }
 
   const lowestPrice = filteredOffers.length > 0
     ? Math.min(
@@ -84,8 +92,7 @@ export function ProductContent({
       )
     : null;
 
-  const defaultCurrency =
-    (filteredOffers[0]?.currency as Currency | undefined) ?? "USD";
+  const defaultCurrency = (filteredOffers[0]?.currency as Currency | undefined) ?? "USD";
 
   const categoryHref = product.category.parent
     ? `/c/${product.category.parent.slug}/${product.category.slug}`
@@ -97,8 +104,45 @@ export function ProductContent({
       : product.description
     : null;
 
-  // Fetch offers when variant changes
-  const [loading, setLoading] = React.useState(false);
+  // ── Sync URL on mount: correct params if server applied a fallback ────
+  // If the URL said ?region=EU&duration=30 but that variant doesn't exist,
+  // the server resolved to a fallback (e.g. EU+60D). We correct the URL
+  // to match what the user actually sees, using replaceState (no reload).
+  React.useEffect(() => {
+    const variant = variants.find((v) => v.id === initialVariantId);
+    if (!variant) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const region = params.get("region");
+    const duration = params.get("duration");
+
+    // Only correct if URL already has variant params
+    if (!region && !duration) return;
+
+    // Ensure URL fully describes the resolved variant
+    let needsCorrection = false;
+    if (region && variant.region !== region) needsCorrection = true;
+    if (duration && variant.durationDays?.toString() !== duration) needsCorrection = true;
+    // If region is set but duration is missing, add it for bookmarkability
+    if (region && !duration && variant.durationDays !== null) needsCorrection = true;
+
+    if (needsCorrection) {
+      params.set("region", variant.region);
+      if (variant.durationDays !== null) {
+        params.set("duration", variant.durationDays.toString());
+      } else {
+        params.delete("duration");
+      }
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}?${params.toString()}`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch offers when variant changes (skip first render — server already fetched)
   const isFirstRender = React.useRef(true);
 
   React.useEffect(() => {
@@ -133,18 +177,69 @@ export function ProductContent({
     };
   }, [selectedVariantId]);
 
+  // Update URL when selection changes
+  const updateUrl = React.useCallback(
+    (updates: {
+      variantId?: string;
+      offerId?: string | null;
+      instant?: boolean;
+    }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      
+      // Update variant params
+      if (updates.variantId !== undefined) {
+        const variant = variants.find((v) => v.id === updates.variantId);
+        if (variant) {
+          params.set("region", variant.region);
+          if (variant.durationDays !== null) {
+            params.set("duration", variant.durationDays.toString());
+          } else {
+            params.delete("duration");
+          }
+        }
+      }
+      
+      // Update offer param
+      if (updates.offerId !== undefined) {
+        if (updates.offerId) {
+          params.set("offer", updates.offerId);
+        } else {
+          params.delete("offer");
+        }
+      }
+      
+      // Update instant filter
+      if (updates.instant !== undefined) {
+        if (updates.instant) {
+          params.set("instant", "1");
+        } else {
+          params.delete("instant");
+        }
+      }
+      
+      const newUrl = params.toString() ? `?${params.toString()}` : "";
+      router.replace(`${window.location.pathname}${newUrl}`, { scroll: false });
+    },
+    [router, searchParams, variants],
+  );
+
+  // Handle variant change
+  const handleVariantChange = (variantId: string) => {
+    setSelectedVariantId(variantId);
+    // Reset instant filter when variant changes
+    setInstantOnly(false);
+    updateUrl({ variantId, offerId: null, instant: false });
+  };
+
   // Handle instant filter toggle
   const handleInstantToggle = (checked: boolean) => {
     setInstantOnly(checked);
-    const params = new URLSearchParams(searchParams.toString());
-    if (checked) {
-      params.set("instant", "1");
-    } else {
-      params.delete("instant");
-    }
-    const newUrl = params.toString() ? `?${params.toString()}` : "";
-    // Use replace to avoid polluting history
-    router.replace(`${window.location.pathname}${newUrl}`, { scroll: false });
+    updateUrl({ instant: checked });
+  };
+
+  // Handle offer selection (when user clicks an offer card)
+  const handleOfferSelect = (offerId: string) => {
+    updateUrl({ offerId });
   };
 
   return (
@@ -218,17 +313,7 @@ export function ProductContent({
               <VariantPicker
                 variants={variants}
                 selectedId={selectedVariantId}
-                onSelect={(id) => {
-                  setSelectedVariantId(id);
-                  // Reset instant filter when variant changes
-                  setInstantOnly(false);
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.delete("instant");
-                  const newUrl = params.toString() ? `?${params.toString()}` : "";
-                  router.replace(`${window.location.pathname}${newUrl}`, {
-                    scroll: false,
-                  });
-                }}
+                onSelect={handleVariantChange}
               />
             </>
           )}
@@ -275,6 +360,7 @@ export function ProductContent({
           locale={locale}
           instantOnly={instantOnly}
           loading={loading}
+          onOfferSelect={handleOfferSelect}
         />
       </div>
 

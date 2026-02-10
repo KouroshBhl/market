@@ -16,6 +16,7 @@ import { TrustSection } from "@/components/product/trust-section";
 
 interface ProductPageProps {
   params: Promise<{ locale: string; productSlug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -54,8 +55,9 @@ export async function generateMetadata({
 /*  Page component (Server Component)                                         */
 /* -------------------------------------------------------------------------- */
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { locale: localeParam, productSlug } = await params;
+  const sp = await searchParams;
   const locale: Locale = isValidLocale(localeParam) ? localeParam : "en";
 
   const product = await fetchProductBySlug(productSlug);
@@ -63,10 +65,40 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const defaultVariant =
-    product.variants.find((v) => v.offerCount > 0) ?? product.variants[0];
-  const offersData = defaultVariant
-    ? await fetchOffersForVariant(defaultVariant.id)
+  /* ── Resolve variant from URL search params ──────────────────────────── */
+  const regionParam = typeof sp.region === "string" ? sp.region : null;
+  const durationParam = typeof sp.duration === "string" ? sp.duration : null;
+  const parsedDuration = durationParam ? parseInt(durationParam, 10) : null;
+
+  let resolvedVariant = product.variants[0]; // safe default
+
+  if (regionParam) {
+    // 1. Try exact match: region + duration (+ any edition)
+    const exact = product.variants.find(
+      (v) =>
+        v.region === regionParam &&
+        (parsedDuration === null || v.durationDays === parsedDuration),
+    );
+    if (exact) {
+      resolvedVariant = exact;
+    } else if (parsedDuration !== null) {
+      // 2. Region exists but requested duration doesn't → first variant for region with offers
+      const regionFallback =
+        product.variants.find(
+          (v) => v.region === regionParam && v.offerCount > 0,
+        ) ?? product.variants.find((v) => v.region === regionParam);
+      if (regionFallback) {
+        resolvedVariant = regionFallback;
+      }
+    }
+  } else {
+    // No URL params → first variant with offers (original behavior)
+    resolvedVariant =
+      product.variants.find((v) => v.offerCount > 0) ?? product.variants[0];
+  }
+
+  const offersData = resolvedVariant
+    ? await fetchOffersForVariant(resolvedVariant.id)
     : { offers: [], platformFeeBps: 300 };
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -88,12 +120,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
           locale={locale}
         />
 
-        {defaultVariant ? (
+        {resolvedVariant ? (
           <ProductContent
             product={product}
             productId={product.id}
             variants={product.variants}
-            initialVariantId={defaultVariant.id}
+            initialVariantId={resolvedVariant.id}
             initialOffers={offersData.offers}
             initialPlatformFeeBps={offersData.platformFeeBps}
             locale={locale}

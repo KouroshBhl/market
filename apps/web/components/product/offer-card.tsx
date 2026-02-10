@@ -19,12 +19,14 @@ export function OfferCard({
   productId,
   locale,
   isBest,
+  onSelect,
 }: {
   offer: PublicOffer;
   platformFeeBps: number;
   productId: string;
   locale: Locale;
   isBest?: boolean;
+  onSelect?: (offerId: string) => void;
 }) {
   const buyerTotalCents =
     offer.priceAmountCents +
@@ -48,9 +50,10 @@ export function OfferCard({
 
   return (
     <div
-      className={`flex flex-col sm:flex-row gap-4 rounded-lg border p-4 ${
+      className={`flex flex-col sm:flex-row gap-4 rounded-lg border p-4 cursor-pointer transition-colors hover:bg-accent/50 ${
         isBest ? "border-primary bg-accent/30" : "border-border"
       }`}
+      onClick={() => onSelect?.(offer.id)}
     >
       {/* Seller info */}
       <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -89,14 +92,9 @@ export function OfferCard({
           <p className="text-lg font-bold text-foreground">
             {formatMoney(buyerTotalCents, currency)}
           </p>
-          {platformFeeBps > 0 && (
-            <p className="text-[11px] text-muted-foreground">
-              {formatMoney(offer.priceAmountCents, currency)} + fee
-            </p>
-          )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           <Button
             variant={isBest ? "default" : "outline"}
             size="sm"

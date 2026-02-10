@@ -31,6 +31,7 @@ export function OffersSection({
   locale,
   instantOnly,
   loading,
+  onOfferSelect,
 }: {
   productId: string;
   selectedVariant: VariantSummary | null;
@@ -39,6 +40,7 @@ export function OffersSection({
   locale: Locale;
   instantOnly: boolean;
   loading: boolean;
+  onOfferSelect?: (offerId: string) => void;
 }) {
   const [sort, setSort] = React.useState<SortMode>("price-asc");
 
@@ -119,6 +121,7 @@ export function OffersSection({
               productId={productId}
               locale={locale}
               isBest={idx === 0 && sort === "price-asc"}
+              onSelect={onOfferSelect}
             />
           ))}
         </div>

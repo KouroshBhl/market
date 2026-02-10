@@ -6,8 +6,7 @@
  * uses the internal host, not the public domain.
  */
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 /* -------------------------------------------------------------------------- */
 /*  Category types                                                            */
@@ -41,7 +40,7 @@ export interface CategoryInfo {
 
 export interface VariantSummary {
   id: string;
-  region: "EU" | "US" | "TR" | "GLOBAL";
+  region: 'EU' | 'US' | 'TR' | 'GLOBAL';
   durationDays: number | null;
   edition: string | null;
   sku: string;
@@ -66,7 +65,7 @@ export interface PublicOffer {
   id: string;
   sellerId: string;
   sellerName: string;
-  deliveryType: "AUTO_KEY" | "MANUAL";
+  deliveryType: 'AUTO_KEY' | 'MANUAL';
   priceAmountCents: number;
   currency: string;
   estimatedDeliveryMinutes: number | null;
@@ -124,7 +123,7 @@ export async function fetchOffersForVariant(
   try {
     const res = await fetch(
       `${API_BASE_URL}/public/offers/by-variant/${encodeURIComponent(variantId)}`,
-      { next: { revalidate: 60 } },
+      { next: { revalidate: 10 } },
     );
     if (!res.ok) return { offers: [], platformFeeBps: 300 };
     return await res.json();

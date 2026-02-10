@@ -85,12 +85,6 @@ export function PurchaseSummaryCard({
               {buyerTotalCents !== null &&
                 formatMoney(buyerTotalCents, currency)}
             </p>
-            {platformFeeBps > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {formatMoney(bestOffer.priceAmountCents, currency)} + service
-                fee
-              </p>
-            )}
           </div>
 
           {isInstant ? (
