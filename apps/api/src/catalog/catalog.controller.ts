@@ -1,10 +1,11 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
 import type {
   GetCatalogProductsResponse,
   GetCatalogVariantsResponse,
 } from '@workspace/contracts';
+import type { ProductBySlugResponse } from '../contracts/catalog/get-product-by-slug.contract';
 
 @ApiTags('Catalog')
 @Controller('catalog')
@@ -30,6 +31,20 @@ export class CatalogController {
     @Query('categoryId') categoryId?: string,
   ): Promise<GetCatalogProductsResponse> {
     return this.catalogService.getProducts(categoryId);
+  }
+
+  @Get('products/by-slug/:slug')
+  @ApiOperation({
+    summary: 'Get catalog product by slug',
+    description: 'Returns a single active catalog product by its slug, including category info and active variants. Used by the buyer product page.',
+  })
+  @ApiParam({ name: 'slug', description: 'Product slug', type: String })
+  @ApiResponse({ status: 200, description: 'Product found' })
+  @ApiResponse({ status: 404, description: 'Product not found or inactive' })
+  async getProductBySlug(
+    @Param('slug') slug: string,
+  ): Promise<ProductBySlugResponse> {
+    return this.catalogService.getProductBySlug(slug);
   }
 
   @Get('products/:productId/variants')

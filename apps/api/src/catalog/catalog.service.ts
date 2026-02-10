@@ -6,6 +6,7 @@ import type {
   GetCatalogProductsResponse,
   GetCatalogVariantsResponse,
 } from '@workspace/contracts';
+import type { ProductBySlugResponse } from '../contracts/catalog/get-product-by-slug.contract';
 
 @Injectable()
 export class CatalogService {
@@ -42,6 +43,62 @@ export class CatalogService {
     }
 
     return this.mapProductToContract(product);
+  }
+
+  /**
+   * Get a catalog product by slug, with category info and active variants.
+   * Used by the buyer product page.
+   */
+  async getProductBySlug(slug: string): Promise<ProductBySlugResponse> {
+    const product = await prisma.catalogProduct.findFirst({
+      where: { slug, isActive: true },
+      include: {
+        category: {
+          include: {
+            parent: { select: { id: true, name: true, slug: true } },
+          },
+        },
+        variants: {
+          where: { isActive: true },
+          orderBy: [{ sortOrder: 'asc' }, { region: 'asc' }, { durationDays: 'asc' }],
+          select: {
+            id: true,
+            region: true,
+            durationDays: true,
+            edition: true,
+            sku: true,
+            supportsAutoKey: true,
+            supportsManual: true,
+            sortOrder: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with slug "${slug}" not found`);
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      imageUrl: product.imageUrl,
+      category: {
+        id: product.category.id,
+        name: product.category.name,
+        slug: product.category.slug,
+        parent: product.category.parent
+          ? {
+              id: product.category.parent.id,
+              name: product.category.parent.name,
+              slug: product.category.parent.slug,
+            }
+          : null,
+      },
+      variants: product.variants,
+    };
   }
 
   /**
