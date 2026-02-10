@@ -26,8 +26,10 @@ import {
   AlertDescription,
 } from '@workspace/ui';
 import { columns, type OrderRow } from './orders.columns';
+import { useSeller } from '@/components/seller-provider';
+import { authedFetch } from '@/lib/auth';
 
-const DEMO_SELLER_ID = '00000000-0000-0000-0000-000000000001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 type FilterTab = 'all' | 'unassigned' | 'needsFulfillment' | 'fulfilled' | 'overdue';
 
@@ -56,6 +58,8 @@ export default function OrdersPage() {
     return `${sort.id}_${sort.desc ? 'desc' : 'asc'}`;
   }, [sorting]);
 
+  const { activeSeller } = useSeller();
+
   const {
     data,
     isLoading,
@@ -64,10 +68,9 @@ export default function OrdersPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['seller-orders', DEMO_SELLER_ID, filterTab, sortParam],
+    queryKey: ['seller-orders', activeSeller?.sellerId, filterTab, sortParam],
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({
-        sellerId: DEMO_SELLER_ID,
         limit: '20',
         sort: sortParam,
         filterTab,
@@ -75,8 +78,8 @@ export default function OrdersPage() {
       if (pageParam) {
         params.append('cursor', pageParam);
       }
-      const response = await fetch(
-        `http://localhost:4000/orders/seller?${params.toString()}`
+      const response = await authedFetch(
+        `${API_URL}/seller/${activeSeller!.sellerId}/orders?${params.toString()}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -85,6 +88,7 @@ export default function OrdersPage() {
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: undefined as string | undefined,
+    enabled: !!activeSeller?.sellerId,
   });
 
   // Flatten all pages into single array

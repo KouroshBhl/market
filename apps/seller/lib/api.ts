@@ -1,3 +1,12 @@
+/**
+ * Seller API Client
+ *
+ * SECURITY FIX (2026-02-10): All API functions now require sellerId parameter
+ * derived from the authenticated seller context (useSeller hook).
+ *
+ * Route pattern: /seller/:sellerId/... — sellerId is validated server-side
+ * via SellerMemberGuard. The hardcoded SELLER_ID has been removed.
+ */
 import type {
   Product,
   SaveProductDraft,
@@ -19,13 +28,12 @@ import { authedFetch } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-// SELLER_ID is no longer hardcoded — it comes from the auth user's seller profile.
-// For endpoints that still need sellerId as a query param, we get it from the auth context.
-// But as we migrate endpoints to use Bearer auth, this becomes unnecessary.
-export const SELLER_ID = '00000000-0000-0000-0000-000000000001'; // Legacy fallback
+// ============================================
+// OFFER API HELPERS
+// ============================================
 
-export async function getProducts(): Promise<OfferWithDetails[]> {
-  const response = await authedFetch(`${API_URL}/seller/offers?sellerId=${SELLER_ID}`, {
+export async function getProducts(sellerId: string): Promise<OfferWithDetails[]> {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers`, {
     cache: 'no-store',
   });
 
@@ -34,19 +42,31 @@ export async function getProducts(): Promise<OfferWithDetails[]> {
   }
 
   const data = await response.json();
-  return data.offers; // API returns { offers: [...] }
+  return data.offers;
 }
 
-export async function getOffer(offerId: string): Promise<OfferWithDetails | null> {
-  const offers = await getProducts();
-  return offers.find((o) => o.id === offerId) ?? null;
+export async function getOffer(offerId: string, sellerId: string): Promise<OfferWithDetails | null> {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/${offerId}`, {
+    cache: 'no-store',
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch offer');
+  }
+
+  return response.json();
 }
 
 export async function updateOfferStatus(
   offerId: string,
-  payload: UpdateOfferStatus
+  payload: UpdateOfferStatus,
+  sellerId: string,
 ): Promise<void> {
-  const response = await authedFetch(`${API_URL}/offers/${offerId}/status`, {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/${offerId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -59,9 +79,10 @@ export async function updateOfferStatus(
 
 export async function updateOffer(
   offerId: string,
-  payload: UpdateOffer
+  payload: UpdateOffer,
+  sellerId: string,
 ): Promise<void> {
-  const response = await authedFetch(`${API_URL}/offers/${offerId}`, {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/${offerId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -75,11 +96,49 @@ export async function updateOffer(
 /** @deprecated Use updateOffer instead */
 export async function updateOfferPricing(
   offerId: string,
-  payload: { priceAmount: number; currency: string }
+  payload: { priceAmount: number; currency: string },
+  sellerId: string,
 ): Promise<void> {
-  return updateOffer(offerId, payload);
+  return updateOffer(offerId, payload, sellerId);
 }
 
+export async function saveOfferDraft(
+  data: Record<string, unknown>,
+  sellerId: string,
+): Promise<unknown> {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to save draft');
+  }
+
+  return response.json();
+}
+
+export async function publishOffer(
+  data: Record<string, unknown>,
+  sellerId: string,
+): Promise<unknown> {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to publish offer');
+  }
+
+  return response.json();
+}
+
+// Legacy aliases (these are no longer needed but kept for compatibility)
 export async function saveProductDraft(data: SaveProductDraft): Promise<ProductDraft> {
   const response = await authedFetch(`${API_URL}/products/draft`, {
     method: 'POST',
@@ -118,10 +177,11 @@ export async function publishProduct(id: string): Promise<Product> {
 // ============================================
 
 export async function getKeyPoolByOffer(
-  offerId: string
+  offerId: string,
+  sellerId: string,
 ): Promise<KeyPoolWithCounts | null> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/by-offer/${offerId}?sellerId=${SELLER_ID}`
+    `${API_URL}/seller/${sellerId}/key-pools/by-offer/${offerId}`
   );
   if (response.status === 404) {
     return null;
@@ -132,8 +192,8 @@ export async function getKeyPoolByOffer(
   return response.json();
 }
 
-export async function createKeyPool(offerId: string): Promise<KeyPoolWithCounts> {
-  const response = await authedFetch(`${API_URL}/key-pools?sellerId=${SELLER_ID}`, {
+export async function createKeyPool(offerId: string, sellerId: string): Promise<KeyPoolWithCounts> {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/key-pools`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ offerId }),
@@ -145,9 +205,9 @@ export async function createKeyPool(offerId: string): Promise<KeyPoolWithCounts>
   return response.json();
 }
 
-export async function getKeyPoolStats(poolId: string): Promise<KeyPoolStats> {
+export async function getKeyPoolStats(poolId: string, sellerId: string): Promise<KeyPoolStats> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/stats?sellerId=${SELLER_ID}`
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/stats`
   );
   if (!response.ok) {
     throw new Error('Failed to fetch key pool stats');
@@ -157,15 +217,17 @@ export async function getKeyPoolStats(poolId: string): Promise<KeyPoolStats> {
 
 export async function listKeys(
   poolId: string,
+  sellerId: string,
   options: { status?: string; page?: number; pageSize?: number } = {}
 ): Promise<ListKeysResponse> {
-  const params = new URLSearchParams({ sellerId: SELLER_ID });
+  const params = new URLSearchParams();
   if (options.status) params.set('status', options.status);
   if (options.page) params.set('page', String(options.page));
   if (options.pageSize) params.set('pageSize', String(options.pageSize));
 
+  const qs = params.toString();
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/keys?${params.toString()}`
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/keys${qs ? `?${qs}` : ''}`
   );
   if (!response.ok) {
     throw new Error('Failed to fetch keys');
@@ -175,10 +237,11 @@ export async function listKeys(
 
 export async function uploadKeys(
   poolId: string,
+  sellerId: string,
   payload: { keys?: string[]; rawText?: string }
 ): Promise<UploadKeysResponse> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/keys/upload?sellerId=${SELLER_ID}`,
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/keys/upload`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -195,10 +258,11 @@ export async function uploadKeys(
 export async function editKey(
   poolId: string,
   keyId: string,
-  newCode: string
+  newCode: string,
+  sellerId: string,
 ): Promise<EditKeyResponse> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/keys/${keyId}?sellerId=${SELLER_ID}`,
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/keys/${keyId}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -214,10 +278,11 @@ export async function editKey(
 
 export async function invalidateKey(
   poolId: string,
-  keyId: string
+  keyId: string,
+  sellerId: string,
 ): Promise<InvalidateKeyResponse> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/keys/${keyId}?sellerId=${SELLER_ID}`,
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/keys/${keyId}`,
     { method: 'DELETE' }
   );
   if (!response.ok) {
@@ -229,10 +294,11 @@ export async function invalidateKey(
 
 export async function revealKey(
   poolId: string,
-  keyId: string
+  keyId: string,
+  sellerId: string,
 ): Promise<RevealKeyResponse> {
   const response = await authedFetch(
-    `${API_URL}/key-pools/${poolId}/keys/${keyId}/reveal?sellerId=${SELLER_ID}`,
+    `${API_URL}/seller/${sellerId}/key-pools/${poolId}/keys/${keyId}/reveal`,
     { method: 'POST' }
   );
   if (!response.ok) {

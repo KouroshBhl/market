@@ -16,7 +16,8 @@ import {
   Alert,
   AlertDescription,
 } from '@workspace/ui';
-import { getOffer } from '@/lib/api';
+import { getOffer, updateOfferStatus } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 import { OfferStatusBar } from '@/components/offer-settings/offer-status-bar';
 import { OverviewTab } from '@/components/offer-settings/overview-tab';
 import { KeysTab } from '@/components/offer-settings/keys-tab';
@@ -24,7 +25,6 @@ import { PricingTab } from '@/components/offer-settings/pricing-tab';
 import { DeliveryTab } from '@/components/offer-settings/delivery-tab';
 import { DescriptionTab } from '@/components/offer-settings/description-tab';
 import { AdvancedTab } from '@/components/offer-settings/advanced-tab';
-import { updateOfferStatus } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@workspace/ui';
 import type { OfferWithDetails } from '@workspace/contracts';
@@ -48,17 +48,18 @@ export default function OfferSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { activeSeller } = useSeller();
   const offerId = params.offerId as string;
   const [activeTab, setActiveTab] = React.useState<TabId>('overview');
 
   const { data: offer, isLoading, error } = useQuery({
-    queryKey: ['offer', offerId],
-    queryFn: () => getOffer(offerId),
-    enabled: !!offerId,
+    queryKey: ['offer', offerId, activeSeller?.sellerId],
+    queryFn: () => getOffer(offerId, activeSeller!.sellerId),
+    enabled: !!offerId && !!activeSeller?.sellerId,
   });
 
   const forceDeactivateMutation = useMutation({
-    mutationFn: () => updateOfferStatus(offerId, { status: 'inactive' }),
+    mutationFn: () => updateOfferStatus(offerId, { status: 'inactive' }, activeSeller!.sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['offer', offerId] });

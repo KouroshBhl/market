@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, Switch, Label, toast } from '@workspace/ui';
 import type { OfferWithDetails } from '@workspace/contracts';
 import { updateOfferStatus } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 
 interface OverviewTabProps {
   offer: OfferWithDetails;
@@ -11,6 +12,7 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ offer, onNavigateToKeys }: OverviewTabProps) {
+  const { activeSeller } = useSeller();
   const queryClient = useQueryClient();
   const isDraft = offer.status === 'draft';
   const isActive = offer.status === 'active';
@@ -20,7 +22,7 @@ export function OverviewTab({ offer, onNavigateToKeys }: OverviewTabProps) {
 
   const statusMutation = useMutation({
     mutationFn: ({ status }: { status: 'active' | 'inactive' }) =>
-      updateOfferStatus(offer.id, { status }),
+      updateOfferStatus(offer.id, { status }, activeSeller!.sellerId),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['offer', offer.id] });

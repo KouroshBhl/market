@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Alert, AlertDescription, toast } from '@workspace/ui';
 import { getKeyPoolByOffer, createKeyPool } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 import { KeyStatsCard, KeyUploadPanel, KeysTable } from '@/components/keys';
 
 interface KeysTabProps {
@@ -11,6 +12,8 @@ interface KeysTabProps {
 
 export function KeysTab({ offerId }: KeysTabProps) {
   const queryClient = useQueryClient();
+  const { activeSeller } = useSeller();
+  const sellerId = activeSeller?.sellerId;
 
   // Fetch key pool for this offer
   const {
@@ -18,14 +21,14 @@ export function KeysTab({ offerId }: KeysTabProps) {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['key-pool', offerId],
-    queryFn: () => getKeyPoolByOffer(offerId),
-    enabled: !!offerId,
+    queryKey: ['key-pool', offerId, sellerId],
+    queryFn: () => getKeyPoolByOffer(offerId, sellerId!),
+    enabled: !!offerId && !!sellerId,
   });
 
   // Create key pool mutation
   const createPoolMutation = useMutation({
-    mutationFn: () => createKeyPool(offerId),
+    mutationFn: () => createKeyPool(offerId, sellerId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['key-pool', offerId] });
       toast({

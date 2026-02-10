@@ -23,6 +23,7 @@ import {
   toast,
 } from '@workspace/ui';
 import { listKeys, invalidateKey, editKey, revealKey } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 import type { KeyListItem } from '@workspace/contracts';
 import { Pencil, Trash2, Eye, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -41,6 +42,8 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export function KeysTable({ poolId }: KeysTableProps) {
+  const { activeSeller } = useSeller();
+  const sellerId = activeSeller?.sellerId ?? '';
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [page, setPage] = useState(1);
@@ -55,7 +58,7 @@ export function KeysTable({ poolId }: KeysTableProps) {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['keys', poolId, statusFilter, page, pageSize],
     queryFn: () =>
-      listKeys(poolId, {
+      listKeys(poolId, sellerId, {
         status: statusFilter === 'ALL' ? undefined : statusFilter,
         page,
         pageSize,
@@ -63,7 +66,7 @@ export function KeysTable({ poolId }: KeysTableProps) {
   });
 
   const invalidateMutation = useMutation({
-    mutationFn: (keyId: string) => invalidateKey(poolId, keyId),
+    mutationFn: (keyId: string) => invalidateKey(poolId, keyId, sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keys', poolId] });
       queryClient.invalidateQueries({ queryKey: ['key-pool'] });
@@ -86,7 +89,7 @@ export function KeysTable({ poolId }: KeysTableProps) {
 
   const editMutation = useMutation({
     mutationFn: ({ keyId, newCode }: { keyId: string; newCode: string }) =>
-      editKey(poolId, keyId, newCode),
+      editKey(poolId, keyId, newCode, sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keys', poolId] });
       setEditModal(null);
@@ -106,7 +109,7 @@ export function KeysTable({ poolId }: KeysTableProps) {
   });
 
   const revealMutation = useMutation({
-    mutationFn: (keyId: string) => revealKey(poolId, keyId),
+    mutationFn: (keyId: string) => revealKey(poolId, keyId, sellerId),
     onSuccess: (data) => {
       setRevealedCode(data.code);
     },

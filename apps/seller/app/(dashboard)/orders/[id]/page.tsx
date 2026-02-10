@@ -5,6 +5,11 @@ import { Button, Badge, Card, Alert, AlertDescription, Label, Select, useToast, 
 import { ArrowLeft, CheckCircle, Clock, AlertCircle, Package, CircleCheck, CircleX } from 'lucide-react';
 import Link from 'next/link';
 import { use, useState } from 'react';
+import { useSeller } from '@/components/seller-provider';
+import { useAuth } from '@/components/auth-provider';
+import { authedFetch } from '@/lib/auth';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'FULFILLED' | 'CANCELLED' | 'EXPIRED';
 type WorkState = 'UNASSIGNED' | 'IN_PROGRESS' | 'DONE' | null;
@@ -72,10 +77,6 @@ interface OrderDetails {
   } | null;
 }
 
-const DEMO_SELLER_ID = '00000000-0000-0000-0000-000000000001';
-const DEMO_USER_ID = 'u0000000-0000-0000-0000-000000000001'; // Demo owner
-const DEMO_ROLE = 'OWNER'; // Demo: will come from auth
-
 export default function OrderDetailPage({
   params,
 }: {
@@ -84,39 +85,46 @@ export default function OrderDetailPage({
   const resolvedParams = use(params);
   const orderId = resolvedParams.id;
   const queryClient = useQueryClient();
+  const { activeSeller, activeRole } = useSeller();
+  const { user } = useAuth();
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
   const { toast } = useToast();
 
+  const sellerId = activeSeller?.sellerId;
+  const userId = user?.id;
+
   const { data: orderData, isLoading, error } = useQuery({
-    queryKey: ['seller-order', orderId],
+    queryKey: ['seller-order', orderId, sellerId],
     queryFn: async () => {
-      const response = await fetch(
-        `http://localhost:4000/orders/seller/${orderId}?sellerId=${DEMO_SELLER_ID}`
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/orders/${orderId}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch order details');
       }
       return response.json() as Promise<OrderDetails>;
     },
+    enabled: !!sellerId,
   });
 
   const { data: teamData } = useQuery({
-    queryKey: ['seller-team', DEMO_SELLER_ID],
+    queryKey: ['seller-team', sellerId],
     queryFn: async () => {
-      const response = await fetch(
-        `http://localhost:4000/seller/team?sellerId=${DEMO_SELLER_ID}`
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/members`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch team');
       }
       return response.json() as Promise<{ members: TeamMember[] }>;
     },
+    enabled: !!sellerId,
   });
 
   const claimMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(
-        `http://localhost:4000/orders/seller/orders/${orderId}/claim?sellerId=${DEMO_SELLER_ID}&userId=${DEMO_USER_ID}`,
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/orders/${orderId}/claim`,
         {
           method: 'POST',
         }
@@ -129,19 +137,19 @@ export default function OrderDetailPage({
     },
     onSuccess: (data) => {
       // Optimistically update the order details cache
-      queryClient.setQueryData(['seller-order', orderId], (old: any) => {
+      queryClient.setQueryData(['seller-order', orderId, sellerId], (old: any) => {
         if (!old) return old;
         return {
           ...old,
           order: {
             ...old.order,
-            assignedToUserId: DEMO_USER_ID,
+            assignedToUserId: userId,
             workState: 'IN_PROGRESS',
             assignedAt: new Date().toISOString(),
             assignedTo: {
-              id: DEMO_USER_ID,
-              email: 'owner@seller.com',
-              name: 'John Doe (Owner)',
+              id: userId,
+              email: user?.email || '',
+              name: user?.displayName || user?.email || '',
             },
           },
         };
@@ -175,8 +183,8 @@ export default function OrderDetailPage({
 
   const reassignMutation = useMutation({
     mutationFn: async (assignedToUserId: string) => {
-      const response = await fetch(
-        `http://localhost:4000/orders/seller/orders/${orderId}/assignee?sellerId=${DEMO_SELLER_ID}&userId=${DEMO_USER_ID}`,
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/orders/${orderId}/assignee`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -241,8 +249,8 @@ export default function OrderDetailPage({
 
   const fulfillMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(
-        `http://localhost:4000/orders/${orderId}/fulfill-manual?sellerId=${DEMO_SELLER_ID}&userId=${DEMO_USER_ID}`,
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/orders/${orderId}/fulfill-manual`,
         {
           method: 'POST',
         }
@@ -255,7 +263,7 @@ export default function OrderDetailPage({
     },
     onSuccess: () => {
       // Optimistically update the order details cache
-      queryClient.setQueryData(['seller-order', orderId], (old: any) => {
+      queryClient.setQueryData(['seller-order', orderId, sellerId], (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -351,14 +359,14 @@ export default function OrderDetailPage({
 
   const { order, offer, requirementTemplate } = orderData;
 
-  // DEBUG: Log assignment state (REMOVE AFTER FIX VERIFIED)
+  // DEBUG: Log assignment state
   console.log('🔍 DEBUG Order Assignment State:', {
     orderId: order.id,
     status: order.status,
     deliveryType: offer.deliveryType,
     assignedToUserId: order.assignedToUserId,
-    currentUserId: DEMO_USER_ID,
-    currentUserRole: DEMO_ROLE,
+    currentUserId: userId,
+    currentUserRole: activeRole,
     workState: order.workState,
     assignedTo: order.assignedTo,
   });
@@ -482,7 +490,7 @@ export default function OrderDetailPage({
                   <div className="flex-1">
                     {order.assignedTo && (
                       <div className="flex items-center gap-2">
-                        {order.assignedTo.id === DEMO_USER_ID ? (
+                        {order.assignedTo.id === userId ? (
                           <Badge variant="secondary">Me</Badge>
                         ) : (
                           <span className="text-foreground font-medium">
@@ -498,7 +506,7 @@ export default function OrderDetailPage({
                       </div>
                     )}
                   </div>
-                  {DEMO_ROLE === 'OWNER' && teamData && (
+                  {activeRole === 'OWNER' && teamData && (
                     <div className="flex items-center gap-2">
                       <Select 
                         value={selectedAssignee} 
@@ -638,8 +646,8 @@ export default function OrderDetailPage({
               
               {/* Authorization check */}
               {(() => {
-                const isAssignee = order.assignedToUserId === DEMO_USER_ID;
-                const isOwner = DEMO_ROLE === 'OWNER';
+                const isAssignee = order.assignedToUserId === userId;
+                const isOwner = activeRole === 'OWNER';
                 const canFulfill = isAssignee || isOwner;
                 const isAssignedToSomeoneElse = order.assignedToUserId && !isAssignee;
 

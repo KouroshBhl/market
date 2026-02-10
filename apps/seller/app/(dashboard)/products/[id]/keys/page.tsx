@@ -17,24 +17,27 @@ import {
   Badge,
 } from '@workspace/ui';
 import { KeyPoolManager } from '@/components/key-pool-manager';
+import { useSeller } from '@/components/seller-provider';
+import { authedFetch } from '@/lib/auth';
 import type { OfferWithDetails } from '@workspace/contracts';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const SELLER_ID = '00000000-0000-0000-0000-000000000001';
 
 export default function OfferKeysPage() {
   const params = useParams();
   const router = useRouter();
+  const { activeSeller } = useSeller();
   const offerId = params.id as string;
 
-  // Fetch offer details
+  // Fetch offer details using authenticated route
   const { data: offersData, isLoading, error } = useQuery<{ offers: OfferWithDetails[] }>({
-    queryKey: ['seller-offers'],
+    queryKey: ['seller-offers', activeSeller?.sellerId],
     queryFn: async () => {
-      const response = await fetch(`${API_URL}/seller/offers?sellerId=${SELLER_ID}`);
+      const response = await authedFetch(`${API_URL}/seller/${activeSeller!.sellerId}/offers`);
       if (!response.ok) throw new Error('Failed to fetch offers');
       return response.json();
     },
+    enabled: !!activeSeller?.sellerId,
   });
 
   const offer = offersData?.offers.find((o) => o.id === offerId);
@@ -218,7 +221,7 @@ export default function OfferKeysPage() {
           </div>
 
           {/* Key Pool Manager */}
-          <KeyPoolManager offerId={offerId} sellerId={SELLER_ID} />
+          <KeyPoolManager offerId={offerId} sellerId={activeSeller!.sellerId} />
         </div>
       </div>
     </>

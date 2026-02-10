@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, toast } from '@workspace/ui';
 import type { OfferWithDetails } from '@workspace/contracts';
 import { updateOffer } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 import { MarkdownEditor } from '@/components/markdown-editor';
 
 interface DescriptionTabProps {
@@ -12,6 +13,7 @@ interface DescriptionTabProps {
 }
 
 export function DescriptionTab({ offer }: DescriptionTabProps) {
+  const { activeSeller } = useSeller();
   const queryClient = useQueryClient();
   const [value, setValue] = useState(offer.descriptionMarkdown ?? '');
 
@@ -23,7 +25,7 @@ export function DescriptionTab({ offer }: DescriptionTabProps) {
     mutationFn: () =>
       updateOffer(offer.id, {
         descriptionMarkdown: value.trim() || null,
-      }),
+      }, activeSeller!.sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['offer', offer.id] });

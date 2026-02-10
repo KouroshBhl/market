@@ -7,6 +7,7 @@ import type {
   PublicOffer,
   OffersForVariantResponse,
 } from "@/lib/api";
+import type { Locale } from "@/lib/i18n";
 import { VariantPicker } from "./variant-picker";
 import { OfferCard } from "./offer-card";
 
@@ -16,10 +17,6 @@ const API_BASE =
   typeof window !== "undefined"
     ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")
     : "http://localhost:4000";
-
-/* -------------------------------------------------------------------------- */
-/*  Helpers                                                                   */
-/* -------------------------------------------------------------------------- */
 
 function formatDuration(days: number): string {
   if (days <= 1) return "1 Day";
@@ -36,20 +33,24 @@ function variantLabel(v: VariantSummary): string {
   return parts.join(" · ");
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Component                                                                 */
-/* -------------------------------------------------------------------------- */
-
 export function OffersSection({
+  productId,
   variants,
   initialVariantId,
   initialOffers,
   initialPlatformFeeBps,
+  locale,
+  onVariantChange,
+  onOffersUpdate,
 }: {
+  productId: string;
   variants: VariantSummary[];
   initialVariantId: string;
   initialOffers: PublicOffer[];
   initialPlatformFeeBps: number;
+  locale: Locale;
+  onVariantChange: (id: string) => void;
+  onOffersUpdate: (offers: PublicOffer[], platformFeeBps: number) => void;
 }) {
   const [selectedVariantId, setSelectedVariantId] =
     React.useState(initialVariantId);
@@ -63,7 +64,7 @@ export function OffersSection({
   const selected =
     variants.find((v) => v.id === selectedVariantId) ?? variants[0];
 
-  /* Fetch offers when variant changes (skip the initial render) */
+  /* Fetch offers when variant changes */
   const isFirstRender = React.useRef(true);
   React.useEffect(() => {
     if (isFirstRender.current) {
@@ -78,19 +79,26 @@ export function OffersSection({
         if (!cancelled) {
           setOffers(data.offers);
           setPlatformFeeBps(data.platformFeeBps);
+          onOffersUpdate(data.offers, data.platformFeeBps);
           setLoading(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setOffers([]);
+          onOffersUpdate([], platformFeeBps);
           setLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedVariantId]);
+  }, [selectedVariantId, onOffersUpdate, platformFeeBps]);
+
+  function handleVariantSelect(id: string) {
+    setSelectedVariantId(id);
+    onVariantChange(id);
+  }
 
   /* Sort */
   const sortedOffers = React.useMemo(() => {
@@ -122,19 +130,19 @@ export function OffersSection({
 
   return (
     <div className="space-y-6">
-      {/* ── Always-visible variant selector ── */}
+      {/* Variant selector */}
       {variants.length > 1 && (
         <>
           <VariantPicker
             variants={variants}
             selectedId={selectedVariantId}
-            onSelect={setSelectedVariantId}
+            onSelect={handleVariantSelect}
           />
           <Separator />
         </>
       )}
 
-      {/* ── Contextual offers header ── */}
+      {/* Offers header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-foreground">
           {loading
@@ -166,11 +174,11 @@ export function OffersSection({
         )}
       </div>
 
-      {/* ── Offer cards or empty state ── */}
+      {/* Offer cards or empty state */}
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       ) : inStockOffers.length > 0 ? (
@@ -180,6 +188,8 @@ export function OffersSection({
               key={offer.id}
               offer={offer}
               platformFeeBps={platformFeeBps}
+              productId={productId}
+              locale={locale}
               isBest={idx === 0 && sort === "price-asc"}
             />
           ))}

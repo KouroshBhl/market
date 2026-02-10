@@ -10,6 +10,7 @@ import {
   getPlatformFee,
   calculateSellerBreakdown,
 } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 
 const CURRENCIES: Currency[] = ['USD', 'EUR', 'UAH', 'RUB', 'IRR'];
 
@@ -18,6 +19,7 @@ interface PricingTabProps {
 }
 
 export function PricingTab({ offer }: PricingTabProps) {
+  const { activeSeller } = useSeller();
   const queryClient = useQueryClient();
   const [priceAmount, setPriceAmount] = useState<string>(
     (offer.priceAmount / 100).toFixed(2)
@@ -40,7 +42,7 @@ export function PricingTab({ offer }: PricingTabProps) {
       updateOfferPricing(offer.id, {
         priceAmount: Math.round(parseFloat(priceAmount) * 100),
         currency,
-      }),
+      }, activeSeller!.sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['offer', offer.id] });

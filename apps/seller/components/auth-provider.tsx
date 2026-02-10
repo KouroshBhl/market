@@ -45,9 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = React.useCallback(async () => {
-    await apiLogout();
+    // Clear user state immediately so UI responds instantly
     setUser(null);
-    router.push("/auth/login");
+    // Clear token and notify server (non-blocking, has 3s timeout)
+    apiLogout();
+    // Use replace to prevent back-navigation to authenticated pages
+    router.replace("/auth/login");
   }, [router]);
 
   React.useEffect(() => {

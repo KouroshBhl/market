@@ -13,6 +13,7 @@ import {
   toast,
 } from '@workspace/ui';
 import type { KeyPoolWithCounts, UploadKeysResponse } from '@workspace/contracts';
+import { authedFetch } from '@/lib/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -31,8 +32,8 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
   const { data: keyPool, isLoading, error, refetch } = useQuery<KeyPoolWithCounts | null>({
     queryKey: ['key-pool', offerId],
     queryFn: async () => {
-      const response = await fetch(
-        `${API_URL}/key-pools/by-offer/${offerId}?sellerId=${sellerId}`
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/key-pools/by-offer/${offerId}`
       );
       if (response.status === 404) {
         return null;
@@ -48,7 +49,7 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
   // Create key pool mutation
   const createPoolMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`${API_URL}/key-pools?sellerId=${sellerId}`, {
+      const response = await authedFetch(`${API_URL}/seller/${sellerId}/key-pools`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ offerId }),
@@ -81,8 +82,8 @@ export function KeyPoolManager({ offerId, sellerId, onPoolCreated }: KeyPoolMana
   const uploadKeysMutation = useMutation({
     mutationFn: async (keys: string[]) => {
       if (!keyPool) throw new Error('No key pool');
-      const response = await fetch(
-        `${API_URL}/key-pools/${keyPool.id}/keys/upload?sellerId=${sellerId}`,
+      const response = await authedFetch(
+        `${API_URL}/seller/${sellerId}/key-pools/${keyPool.id}/keys/upload`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

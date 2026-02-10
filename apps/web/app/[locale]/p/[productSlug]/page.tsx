@@ -8,7 +8,7 @@ import { isValidLocale, generateLocaleAlternates, type Locale } from "@/lib/i18n
 import { ProductStructuredData } from "@/components/product/structured-data";
 import { ProductBreadcrumb } from "@/components/product/product-breadcrumb";
 import { ProductHero } from "@/components/product/product-hero";
-import { OffersSection } from "@/components/product/offers-section";
+import { ProductContent } from "@/components/product/product-content";
 import { TrustSection } from "@/components/product/trust-section";
 
 /* -------------------------------------------------------------------------- */
@@ -64,7 +64,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  // Pick the default variant: prefer the first variant with offers, fall back to first variant
   const defaultVariant =
     product.variants.find((v) => v.offerCount > 0) ?? product.variants[0];
   const offersData = defaultVariant
@@ -75,7 +74,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <>
-      {/* Structured data — rendered in <head> by Next.js */}
       <ProductStructuredData
         product={product}
         offers={offersData.offers}
@@ -85,14 +83,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
       />
 
       <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 md:py-10 space-y-8">
-        {/* Breadcrumb */}
         <ProductBreadcrumb
           productName={product.name}
           category={product.category}
           locale={locale}
         />
 
-        {/* Hero: image + title + quick stats */}
         <ProductHero
           product={product}
           offers={offersData.offers}
@@ -102,13 +98,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         <Separator />
 
-        {/* Variants + Offers (client island) */}
         {defaultVariant ? (
-          <OffersSection
+          <ProductContent
+            productId={product.id}
             variants={product.variants}
             initialVariantId={defaultVariant.id}
             initialOffers={offersData.offers}
             initialPlatformFeeBps={offersData.platformFeeBps}
+            locale={locale}
           />
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -118,7 +115,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
         <Separator />
 
-        {/* Product description */}
         {product.description && (
           <>
             <section>
@@ -133,7 +129,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </>
         )}
 
-        {/* Trust & guarantee section */}
         <TrustSection />
       </div>
     </>

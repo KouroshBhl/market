@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { prisma } from '@workspace/db';
 import type {
@@ -21,6 +23,8 @@ import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class OffersService {
+  private readonly logger = new Logger(OffersService.name);
+
   constructor(
     private readonly catalogService: CatalogService,
     private readonly keyPoolsService: KeyPoolsService,
@@ -73,9 +77,10 @@ export class OffersService {
   }
 
   /**
-   * Get a single offer by ID
+   * Get a single offer by ID (seller-scoped)
+   * @param sellerId - Authenticated seller ID (from SellerMemberGuard)
    */
-  async getOfferById(id: string): Promise<OfferWithDetails> {
+  async getOfferById(id: string, sellerId?: string): Promise<OfferWithDetails> {
     const offer = await prisma.offer.findUnique({
       where: { id },
       include: {
@@ -89,6 +94,15 @@ export class OffersService {
     });
 
     if (!offer) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    // SECURITY: Verify seller ownership when sellerId is provided
+    if (sellerId && offer.sellerId !== sellerId) {
+      this.logger.warn(
+        `Unauthorized offer access attempt: seller ${sellerId} tried to access offer ${id} owned by ${offer.sellerId}`,
+      );
+      // Return 404 (non-disclosure) to avoid leaking existence of other sellers' offers
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
@@ -116,8 +130,9 @@ export class OffersService {
 
   /**
    * Save or update an offer draft
+   * @param authenticatedSellerId - Seller ID from authenticated context (SellerMemberGuard)
    */
-  async saveDraft(data: SaveOfferDraft): Promise<Offer> {
+  async saveDraft(data: SaveOfferDraft, authenticatedSellerId: string): Promise<Offer> {
     // Validate delivery capabilities if variant and deliveryType are provided
     if (data.variantId && data.deliveryType) {
       await this.validateDeliveryCapability(data.variantId, data.deliveryType);
@@ -125,7 +140,7 @@ export class OffersService {
 
     // If ID provided, update existing draft
     if (data.id) {
-      return this.updateExistingDraft(data.id, data);
+      return this.updateExistingDraft(data.id, data, authenticatedSellerId);
     }
 
     // For new drafts, deliveryType is required
@@ -163,16 +178,26 @@ export class OffersService {
 
   /**
    * Update an existing draft
+   * @param authenticatedSellerId - Seller ID from authenticated context
    */
   private async updateExistingDraft(
     id: string,
     data: SaveOfferDraft,
+    authenticatedSellerId: string,
   ): Promise<Offer> {
     const existing = await prisma.offer.findUnique({
       where: { id },
     });
 
     if (!existing) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    // SECURITY: Verify seller owns this draft
+    if (existing.sellerId !== authenticatedSellerId) {
+      this.logger.warn(
+        `Unauthorized draft update attempt: seller ${authenticatedSellerId} tried to update offer ${id} owned by ${existing.sellerId}`,
+      );
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
@@ -225,8 +250,9 @@ export class OffersService {
 
   /**
    * Publish an offer (validate and set status to active)
+   * @param authenticatedSellerId - Seller ID from authenticated context (SellerMemberGuard)
    */
-  async publish(data: PublishOffer): Promise<Offer> {
+  async publish(data: PublishOffer, authenticatedSellerId: string): Promise<Offer> {
     // Validate variant exists and is active
     const variant = await prisma.catalogVariant.findUnique({
       where: { id: data.variantId },
@@ -307,13 +333,22 @@ export class OffersService {
 
   /**
    * Update offer (pricing, description, etc.) - for draft and active offers
+   * @param authenticatedSellerId - Seller ID from authenticated context (SellerMemberGuard)
    */
-  async updateOffer(id: string, data: UpdateOffer): Promise<Offer> {
+  async updateOffer(id: string, data: UpdateOffer, authenticatedSellerId: string): Promise<Offer> {
     const existing = await prisma.offer.findUnique({
       where: { id },
     });
 
     if (!existing) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    // SECURITY: Verify seller owns this offer
+    if (existing.sellerId !== authenticatedSellerId) {
+      this.logger.warn(
+        `Unauthorized offer update attempt: seller ${authenticatedSellerId} tried to update offer ${id} owned by ${existing.sellerId}`,
+      );
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
@@ -387,13 +422,22 @@ export class OffersService {
 
   /**
    * Update offer status (toggle active <-> inactive)
+   * @param authenticatedSellerId - Seller ID from authenticated context (SellerMemberGuard)
    */
-  async updateStatus(id: string, data: UpdateOfferStatus): Promise<Offer> {
+  async updateStatus(id: string, data: UpdateOfferStatus, authenticatedSellerId: string): Promise<Offer> {
     const existing = await prisma.offer.findUnique({
       where: { id },
     });
 
     if (!existing) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    // SECURITY: Verify seller owns this offer
+    if (existing.sellerId !== authenticatedSellerId) {
+      this.logger.warn(
+        `Unauthorized status change attempt: seller ${authenticatedSellerId} tried to change status of offer ${id} owned by ${existing.sellerId}`,
+      );
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 

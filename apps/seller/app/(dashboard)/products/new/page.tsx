@@ -36,11 +36,9 @@ import { VariantSelector } from '@/components/variant-selector';
 import { SlaSelector } from '@/components/sla-selector';
 import { useQuery } from '@tanstack/react-query';
 import { authedFetch } from '@/lib/auth';
+import { useSeller } from '@/components/seller-provider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-// For now, hardcode sellerId until auth is implemented
-const SELLER_ID = '00000000-0000-0000-0000-000000000001';
 
 type Step =
   | 'category'
@@ -79,6 +77,7 @@ const INITIAL_STATE: WizardState = {
 
 export default function NewOfferPage() {
   const router = useRouter();
+  const { activeSeller } = useSeller();
   const [currentStep, setCurrentStep] = useState<Step>('category');
   const [wizardState, setWizardState] = useState<WizardState>(INITIAL_STATE);
   const [loading, setLoading] = useState(false);
@@ -225,8 +224,12 @@ export default function NewOfferPage() {
     setValidationErrors([]);
 
     try {
+      if (!activeSeller?.sellerId) {
+        throw new Error('No active seller selected');
+      }
+      const sellerId = activeSeller.sellerId;
+
       const payload: any = {
-        sellerId: SELLER_ID,
         deliveryType: wizardState.deliveryType,
       };
 
@@ -261,7 +264,7 @@ export default function NewOfferPage() {
 
       console.log('📤 Saving draft payload:', JSON.stringify(payload, null, 2));
 
-      const response = await authedFetch(`${API_URL}/offers/draft`, {
+      const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -324,8 +327,12 @@ export default function NewOfferPage() {
         }
       }
 
+      if (!activeSeller?.sellerId) {
+        throw new Error('No active seller selected');
+      }
+      const sellerId = activeSeller.sellerId;
+
       const payload: any = {
-        sellerId: SELLER_ID,
         deliveryType: wizardState.deliveryType,
         variantId: wizardState.variantId,
         priceAmount: Math.round(Number(wizardState.priceAmount) * 100),
@@ -352,7 +359,7 @@ export default function NewOfferPage() {
 
       console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
 
-      const response = await authedFetch(`${API_URL}/offers/publish`, {
+      const response = await authedFetch(`${API_URL}/seller/${sellerId}/offers/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

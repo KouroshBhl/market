@@ -14,6 +14,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table"
 import { getProducts } from "@/lib/api"
+import { useSeller } from "@/components/seller-provider"
 import { columns } from "./products.columns"
 import {
   Table,
@@ -39,6 +40,7 @@ import { RefreshCw } from "lucide-react"
 
 export default function ProductsPage() {
   const router = useRouter()
+  const { activeSeller } = useSeller()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = React.useState("")
@@ -48,8 +50,9 @@ export default function ProductsPage() {
   })
 
   const { data: products = [], isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", activeSeller?.sellerId],
+    queryFn: () => getProducts(activeSeller!.sellerId),
+    enabled: !!activeSeller?.sellerId,
   })
 
   const table = useReactTable({

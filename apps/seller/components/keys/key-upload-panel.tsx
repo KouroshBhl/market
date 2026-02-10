@@ -13,6 +13,7 @@ import {
   toast,
 } from '@workspace/ui';
 import { uploadKeys } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 import type { UploadKeysResponse } from '@workspace/contracts';
 import { Upload, FileText, X } from 'lucide-react';
 
@@ -23,6 +24,8 @@ interface KeyUploadPanelProps {
 }
 
 export function KeyUploadPanel({ poolId, offerId, onUploadSuccess }: KeyUploadPanelProps) {
+  const { activeSeller } = useSeller();
+  const sellerId = activeSeller?.sellerId ?? '';
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [keysText, setKeysText] = useState('');
@@ -31,7 +34,7 @@ export function KeyUploadPanel({ poolId, offerId, onUploadSuccess }: KeyUploadPa
 
   const uploadMutation = useMutation({
     mutationFn: (payload: { keys?: string[]; rawText?: string }) =>
-      uploadKeys(poolId, payload),
+      uploadKeys(poolId, sellerId, payload),
     onSuccess: (data) => {
       setUploadResult(data);
       setKeysText('');

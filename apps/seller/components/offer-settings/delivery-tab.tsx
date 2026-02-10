@@ -6,12 +6,14 @@ import { Badge, Card, Input, Label, Button, toast } from '@workspace/ui';
 import { SlaSelector } from '@/components/sla-selector';
 import type { OfferWithDetails } from '@workspace/contracts';
 import { updateOffer } from '@/lib/api';
+import { useSeller } from '@/components/seller-provider';
 
 interface DeliveryTabProps {
   offer: OfferWithDetails;
 }
 
 export function DeliveryTab({ offer }: DeliveryTabProps) {
+  const { activeSeller } = useSeller();
   const queryClient = useQueryClient();
   const isAutoKey = offer.deliveryType === 'AUTO_KEY';
   const isManual = offer.deliveryType === 'MANUAL';
@@ -39,7 +41,7 @@ export function DeliveryTab({ offer }: DeliveryTabProps) {
         deliveryInstructions: deliveryInstructions.trim() || null,
         estimatedDeliveryMinutes,
         stockCount: stockCount ? parseInt(stockCount, 10) : null,
-      }),
+      }, activeSeller!.sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['offer', offer.id] });

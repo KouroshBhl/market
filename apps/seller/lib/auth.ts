@@ -92,15 +92,22 @@ export async function apiRefresh(): Promise<{ accessToken: string; expiresIn: nu
 }
 
 export async function apiLogout(): Promise<void> {
+  // Clear token FIRST so the user is logged out locally immediately,
+  // even if the server call is slow or fails.
+  clearAccessToken();
+
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
     await fetch(`${API_URL}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
   } catch {
-    // Ignore errors on logout
+    // Ignore errors on logout (timeout, network, etc.)
   }
-  clearAccessToken();
 }
 
 export async function apiGetMe(): Promise<AuthUser | null> {
