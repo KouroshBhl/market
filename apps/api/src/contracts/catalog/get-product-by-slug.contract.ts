@@ -21,6 +21,7 @@ const VariantSummarySchema = z.object({
   supportsAutoKey: z.boolean(),
   supportsManual: z.boolean(),
   sortOrder: z.number().int(),
+  offerCount: z.number().int().openapi({ description: 'Number of active offers for this variant' }),
 }).openapi('VariantSummary');
 
 const ProductBySlugResponseSchema = z.object({

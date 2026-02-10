@@ -64,8 +64,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  // Pick the default variant (first one) and fetch its offers server-side
-  const defaultVariant = product.variants[0];
+  // Pick the default variant: prefer the first variant with offers, fall back to first variant
+  const defaultVariant =
+    product.variants.find((v) => v.offerCount > 0) ?? product.variants[0];
   const offersData = defaultVariant
     ? await fetchOffersForVariant(defaultVariant.id)
     : { offers: [], platformFeeBps: 300 };

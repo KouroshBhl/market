@@ -48,6 +48,8 @@ export interface VariantSummary {
   supportsAutoKey: boolean;
   supportsManual: boolean;
   sortOrder: number;
+  /** Number of active offers for this variant (0 = unavailable) */
+  offerCount: number;
 }
 
 export interface ProductDetail {

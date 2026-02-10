@@ -47,6 +47,7 @@ export class CatalogService {
 
   /**
    * Get a catalog product by slug, with category info and active variants.
+   * Each variant includes offerCount (number of active offers).
    * Used by the buyer product page.
    */
   async getProductBySlug(slug: string): Promise<ProductBySlugResponse> {
@@ -70,6 +71,7 @@ export class CatalogService {
             supportsAutoKey: true,
             supportsManual: true,
             sortOrder: true,
+            _count: { select: { offers: { where: { status: 'active' } } } },
           },
         },
       },
@@ -97,7 +99,17 @@ export class CatalogService {
             }
           : null,
       },
-      variants: product.variants,
+      variants: product.variants.map((v) => ({
+        id: v.id,
+        region: v.region,
+        durationDays: v.durationDays,
+        edition: v.edition,
+        sku: v.sku,
+        supportsAutoKey: v.supportsAutoKey,
+        supportsManual: v.supportsManual,
+        sortOrder: v.sortOrder,
+        offerCount: v._count.offers,
+      })),
     };
   }
 

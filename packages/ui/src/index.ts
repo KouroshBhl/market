@@ -24,4 +24,6 @@ export * from './components/alert';
 export * from './components/switch';
 export * from './components/toast';
 export * from './components/toaster';
+export * from './components/popover';
+export * from './components/command';
 export * from './hooks/use-toast';
