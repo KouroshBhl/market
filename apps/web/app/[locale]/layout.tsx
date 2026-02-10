@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { fetchCategoriesNav } from "@/lib/api";
 import {
   SUPPORTED_LOCALES,
   isValidLocale,
@@ -87,6 +88,9 @@ export default async function LocaleLayout({
 
   const locale: Locale = localeParam;
 
+  // Fetch real categories from API (cached for 5 min via next.revalidate)
+  const categories = await fetchCategoriesNav();
+
   return (
     <>
       <a
@@ -96,11 +100,11 @@ export default async function LocaleLayout({
         Skip to main content
       </a>
       <div className="relative flex min-h-svh flex-col">
-        <SiteHeader locale={locale} />
+        <SiteHeader locale={locale} categories={categories} />
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        <SiteFooter locale={locale} />
+        <SiteFooter locale={locale} categories={categories} />
       </div>
     </>
   );

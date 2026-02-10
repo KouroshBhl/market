@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Menu, User, Globe } from "lucide-react";
+import { Menu, ChevronRight, User, Globe } from "lucide-react";
 import {
   Button,
   Sheet,
@@ -10,6 +10,9 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
   Separator,
 } from "@workspace/ui";
 import { localePath, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n";
@@ -21,6 +24,7 @@ import {
   setCurrencyCookie,
   type Currency,
 } from "@/lib/currency";
+import type { NavParentCategory } from "@/lib/api";
 
 const LOCALE_LABELS: Record<Locale, string> = {
   en: "EN",
@@ -29,7 +33,12 @@ const LOCALE_LABELS: Record<Locale, string> = {
   uk: "УКР",
 };
 
-export function MobileMenu({ locale }: { locale: Locale }) {
+interface MobileMenuProps {
+  locale: Locale;
+  categories: NavParentCategory[];
+}
+
+export function MobileMenu({ locale, categories }: MobileMenuProps) {
   const [open, setOpen] = React.useState(false);
   const [currency, setCurrency] = React.useState<Currency>(DEFAULT_CURRENCY);
 
@@ -42,7 +51,6 @@ export function MobileMenu({ locale }: { locale: Locale }) {
     setCurrencyCookie(next);
   }
 
-  /** Build locale-switch href preserving current path. */
   function localeHref(target: Locale): string {
     if (typeof window === "undefined") return `/${target}`;
     const segments = window.location.pathname.split("/");
@@ -63,20 +71,60 @@ export function MobileMenu({ locale }: { locale: Locale }) {
         </SheetHeader>
 
         <nav aria-label="Mobile navigation" className="flex flex-col">
-          {/* Browse placeholder — until categories are wired to API */}
+          {/* Real category navigation from API */}
           <div className="px-2 py-2">
-            <Button
-              variant="ghost"
-              className="w-full justify-start font-medium text-sm px-3"
-              asChild
-            >
-              <Link
-                href={localePath(locale, "/c")}
-                onClick={() => setOpen(false)}
+            {categories.length > 0 ? (
+              categories.map((parent) => (
+                <Collapsible key={parent.id}>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between font-medium text-sm px-3"
+                    >
+                      {parent.name}
+                      <ChevronRight className="size-4 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="ml-3 flex flex-col gap-0.5 py-1">
+                      <Link
+                        href={localePath(locale, `/c/${parent.slug}`)}
+                        onClick={() => setOpen(false)}
+                        className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                      >
+                        All {parent.name}
+                      </Link>
+                      {parent.children.map((child) => (
+                        <Link
+                          key={child.id}
+                          href={localePath(
+                            locale,
+                            `/c/${parent.slug}/${child.slug}`,
+                          )}
+                          onClick={() => setOpen(false)}
+                          className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          {child.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full justify-start font-medium text-sm px-3"
+                asChild
               >
-                Browse Categories
-              </Link>
-            </Button>
+                <Link
+                  href={localePath(locale, "/c")}
+                  onClick={() => setOpen(false)}
+                >
+                  Browse Categories
+                </Link>
+              </Button>
+            )}
           </div>
 
           <Separator className="my-2" />

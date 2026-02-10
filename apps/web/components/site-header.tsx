@@ -1,18 +1,24 @@
 import Link from "next/link";
-import { Search, ShoppingCart, User } from "lucide-react";
+import { Search, ShoppingCart, User, ChevronDown } from "lucide-react";
 import { Button, Input } from "@workspace/ui";
 import { MobileMenu } from "@/components/mobile-menu";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { CurrencySwitcher } from "@/components/currency-switcher";
 import { localePath, type Locale } from "@/lib/i18n";
+import type { NavParentCategory } from "@/lib/api";
 
-export function SiteHeader({ locale }: { locale: Locale }) {
+interface SiteHeaderProps {
+  locale: Locale;
+  categories: NavParentCategory[];
+}
+
+export function SiteHeader({ locale, categories }: SiteHeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 md:px-6">
         {/* Mobile menu trigger — only visible on small screens */}
         <div className="md:hidden">
-          <MobileMenu locale={locale} />
+          <MobileMenu locale={locale} categories={categories} />
         </div>
 
         {/* Logo */}
@@ -47,14 +53,18 @@ export function SiteHeader({ locale }: { locale: Locale }) {
           <span className="hidden sm:inline">MarketName</span>
         </Link>
 
-        {/* Desktop: Categories link (placeholder until API wired) */}
+        {/* Desktop: Categories mega-menu */}
         <nav
           aria-label="Main navigation"
           className="hidden md:flex items-center gap-1"
         >
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={localePath(locale, "/c")}>Categories</Link>
-          </Button>
+          {categories.length > 0 ? (
+            <DesktopCategoryNav categories={categories} locale={locale} />
+          ) : (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={localePath(locale, "/c")}>Categories</Link>
+            </Button>
+          )}
         </nav>
 
         {/* Search bar — desktop only, UI shell only */}
@@ -72,13 +82,11 @@ export function SiteHeader({ locale }: { locale: Locale }) {
 
         {/* Right side: switchers, search (mobile), account, cart */}
         <div className="flex items-center gap-0.5 ml-auto">
-          {/* Language + Currency — hidden on small screens (available in mobile menu) */}
           <div className="hidden md:flex items-center gap-0.5">
             <LanguageSwitcher locale={locale} />
             <CurrencySwitcher />
           </div>
 
-          {/* Mobile search icon */}
           <Button
             variant="ghost"
             size="icon"
@@ -88,7 +96,6 @@ export function SiteHeader({ locale }: { locale: Locale }) {
             <Search className="size-5" />
           </Button>
 
-          {/* Account / Sign in */}
           <Button
             variant="ghost"
             size="icon"
@@ -103,7 +110,6 @@ export function SiteHeader({ locale }: { locale: Locale }) {
             </Link>
           </Button>
 
-          {/* Cart */}
           <Button variant="ghost" size="icon" asChild>
             <Link
               href={localePath(locale, "/cart")}
@@ -115,5 +121,74 @@ export function SiteHeader({ locale }: { locale: Locale }) {
         </div>
       </div>
     </header>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Desktop category mega-menu — server-rendered for SEO                      */
+/*  All links are real crawlable <a> tags.                                    */
+/* -------------------------------------------------------------------------- */
+
+function DesktopCategoryNav({
+  categories,
+  locale,
+}: {
+  categories: NavParentCategory[];
+  locale: Locale;
+}) {
+  // 3-column grid works well up to ~6 parents; beyond that, still okay with scroll
+  const cols = categories.length <= 3 ? categories.length : 3;
+
+  return (
+    <div className="group relative">
+      <Button variant="ghost" size="sm" className="gap-1.5">
+        Categories
+        <ChevronDown className="size-3.5 transition-transform group-hover:rotate-180" />
+      </Button>
+
+      {/* Mega-menu: visible on group hover / focus-within for progressive enhancement.
+          All links are real <a> tags — fully crawlable by search engines. */}
+      <div
+        className="invisible group-hover:visible group-focus-within:visible absolute left-0 top-full pt-2 z-50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all duration-150"
+        role="menu"
+      >
+        <div className="rounded-lg border border-border bg-background p-6 shadow-lg min-w-[480px]">
+          <div
+            className="grid gap-6"
+            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+          >
+            {categories.map((parent) => (
+              <div key={parent.id}>
+                <Link
+                  href={localePath(locale, `/c/${parent.slug}`)}
+                  className="font-semibold text-sm text-foreground hover:text-primary transition-colors"
+                  role="menuitem"
+                >
+                  {parent.name}
+                </Link>
+                {parent.children.length > 0 && (
+                  <ul className="mt-2 space-y-1.5">
+                    {parent.children.map((child) => (
+                      <li key={child.id}>
+                        <Link
+                          href={localePath(
+                            locale,
+                            `/c/${parent.slug}/${child.slug}`,
+                          )}
+                          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          role="menuitem"
+                        >
+                          {child.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -2,58 +2,66 @@ import Link from "next/link";
 import { Separator } from "@workspace/ui";
 import { FooterAccordion } from "@/components/footer-accordion";
 import { localePath, type Locale } from "@/lib/i18n";
+import type { NavParentCategory } from "@/lib/api";
 
 /**
- * Footer columns — all links are real <a> tags for SEO crawlability.
- * Internal paths are locale-agnostic — prefixed at render time.
- *
- * NOTE: The "Browse" column uses a single link to the categories index
- * until a real API provides the category list. No fake category slugs.
+ * Static footer columns — links that never change.
+ * The "Browse" column is built dynamically from real category data.
  */
-const FOOTER_COLUMNS = [
-  {
-    title: "Marketplace",
-    links: [
-      { label: "About Us", href: "/about" },
-      { label: "How It Works", href: "/how-it-works" },
-      {
-        label: "Sell on MarketName",
-        href: "https://seller.localhost:3002",
-        external: true,
-      },
-    ],
-  },
-  {
-    title: "Browse",
-    links: [{ label: "All Categories", href: "/c" }],
-  },
-  {
-    title: "Support",
-    links: [
-      { label: "Help Center", href: "/support" },
-      { label: "Contact Us", href: "/contact" },
-      { label: "FAQ", href: "/faq" },
-      { label: "Report an Issue", href: "/report" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Terms of Service", href: "/terms" },
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Refund Policy", href: "/refund-policy" },
-      { label: "Cookie Policy", href: "/cookie-policy" },
-    ],
-  },
-] as const;
+const MARKETPLACE_COLUMN = {
+  title: "Marketplace",
+  links: [
+    { label: "About Us", href: "/about" },
+    { label: "How It Works", href: "/how-it-works" },
+    { label: "Sell on MarketName", href: "https://seller.localhost:3002", external: true },
+  ],
+};
 
-export function SiteFooter({ locale }: { locale: Locale }) {
+const SUPPORT_COLUMN = {
+  title: "Support",
+  links: [
+    { label: "Help Center", href: "/support" },
+    { label: "Contact Us", href: "/contact" },
+    { label: "FAQ", href: "/faq" },
+    { label: "Report an Issue", href: "/report" },
+  ],
+};
+
+const LEGAL_COLUMN = {
+  title: "Legal",
+  links: [
+    { label: "Terms of Service", href: "/terms" },
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Refund Policy", href: "/refund-policy" },
+    { label: "Cookie Policy", href: "/cookie-policy" },
+  ],
+};
+
+interface SiteFooterProps {
+  locale: Locale;
+  categories: NavParentCategory[];
+}
+
+export function SiteFooter({ locale, categories }: SiteFooterProps) {
+  // Build the Browse column from real DB categories
+  const browseLinks =
+    categories.length > 0
+      ? categories.map((c) => ({ label: c.name, href: `/c/${c.slug}` }))
+      : [{ label: "All Categories", href: "/c" }];
+
+  const allColumns = [
+    MARKETPLACE_COLUMN,
+    { title: "Browse", links: browseLinks },
+    SUPPORT_COLUMN,
+    LEGAL_COLUMN,
+  ];
+
   return (
     <footer className="border-t border-border bg-muted/40">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
-        {/* Desktop: 4-column grid — hidden on mobile */}
+        {/* Desktop: 4-column grid */}
         <div className="hidden md:grid md:grid-cols-4 gap-8 py-12">
-          {FOOTER_COLUMNS.map((column) => (
+          {allColumns.map((column) => (
             <div key={column.title}>
               <h3 className="font-semibold text-sm text-foreground mb-3">
                 {column.title}
@@ -61,7 +69,8 @@ export function SiteFooter({ locale }: { locale: Locale }) {
               <ul className="space-y-2">
                 {column.links.map((link) => (
                   <li key={link.href}>
-                    {"external" in link && link.external ? (
+                    {"external" in link &&
+                    (link as { external?: boolean }).external ? (
                       <a
                         href={link.href}
                         rel="noopener"
@@ -84,9 +93,9 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           ))}
         </div>
 
-        {/* Mobile: Accordion sections — hidden on desktop */}
+        {/* Mobile: Accordion sections */}
         <div className="md:hidden py-6">
-          <FooterAccordion columns={FOOTER_COLUMNS} locale={locale} />
+          <FooterAccordion columns={allColumns} locale={locale} />
         </div>
 
         <Separator />
@@ -109,10 +118,6 @@ export function SiteFooter({ locale }: { locale: Locale }) {
     </footer>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/*  Payment icon placeholder — small trust symbols                            */
-/* -------------------------------------------------------------------------- */
 
 function PaymentIcon({ label }: { label: string }) {
   return (

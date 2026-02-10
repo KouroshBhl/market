@@ -10,21 +10,21 @@ import {
 import { localePath, type Locale } from "@/lib/i18n";
 
 interface FooterLink {
-  readonly label: string;
-  readonly href: string;
-  readonly external?: boolean;
+  label: string;
+  href: string;
+  external?: boolean;
 }
 
 interface FooterColumn {
-  readonly title: string;
-  readonly links: readonly FooterLink[];
+  title: string;
+  links: FooterLink[];
 }
 
 export function FooterAccordion({
   columns,
   locale,
 }: {
-  columns: readonly FooterColumn[];
+  columns: FooterColumn[];
   locale: Locale;
 }) {
   return (
