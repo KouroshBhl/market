@@ -11,5 +11,6 @@ export * from './order.schema';
 export * from './settings.schema';
 export * from './requirement.schema';
 export * from './seller-team.schema';
+export * from './seller-profile.schema';
 export * from './auth.schema';
 export * from './gateway.schema';

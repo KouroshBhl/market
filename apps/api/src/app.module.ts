@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { SettingsModule } from './settings/settings.module';
 import { RequirementsModule } from './requirements/requirements.module';
 import { SellerTeamModule } from './seller-team/seller-team.module';
+import { SellerProfileModule } from './seller-profile/seller-profile.module';
 import { PresenceModule } from './presence/presence.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
@@ -39,6 +40,7 @@ import { SellerGatewaysModule } from './seller-gateways/seller-gateways.module';
     SettingsModule,
     RequirementsModule,
     SellerTeamModule,
+    SellerProfileModule,
     SellerGatewaysModule,
     PresenceModule,
     OpenApiModule,

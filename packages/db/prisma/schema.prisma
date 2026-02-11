@@ -100,12 +100,24 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+enum SupportResponseTime {
+  UNDER_15_MIN
+  UNDER_1_HOUR
+  UNDER_24_HOURS
+}
+
 model SellerProfile {
-  id          String   @id @default(uuid())
-  userId      String   @unique @map("user_id")
-  displayName String   @map("display_name")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                  String               @id @default(uuid())
+  userId              String               @unique @map("user_id")
+  slug                String               @unique // Immutable store URL slug (derived from initial displayName)
+  displayName         String               @map("display_name")
+  logoUrl             String?              @map("logo_url")
+  bio                 String?              @db.Text
+  supportResponseTime SupportResponseTime? @map("support_response_time")
+  timezone            String?              // IANA timezone (e.g., "Europe/Istanbul")
+  languages           String[]             @default([]) // ISO language codes (e.g., ["en", "fa", "ru"])
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
 
   user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   members            SellerTeamMember[]
@@ -113,6 +125,7 @@ model SellerProfile {
   presences          SellerPresence[]
   gatewayPreferences SellerGatewayPreference[]
 
+  @@index([slug])
   @@map("seller_profiles")
 }
 

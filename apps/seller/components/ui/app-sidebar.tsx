@@ -361,7 +361,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const navMain = React.useMemo(() => {
     const settingsItems = [
-      { title: 'General', url: '#' },
+      { title: 'Identity', url: '/settings/identity' },
       { title: 'Team', url: '/settings/team' },
       { title: 'Payments', url: '/settings/payments' },
     ];

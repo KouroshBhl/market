@@ -55,6 +55,7 @@ export default function OrdersPage() {
   const sortParam = useMemo(() => {
     if (sorting.length === 0) return 'paidAt_desc';
     const sort = sorting[0];
+    if (!sort) return 'paidAt_desc';
     return `${sort.id}_${sort.desc ? 'desc' : 'asc'}`;
   }, [sorting]);
 
@@ -111,7 +112,8 @@ export default function OrdersPage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
           fetchNextPage();
         }
       },

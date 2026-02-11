@@ -352,3 +352,40 @@ export function calculateSellerBreakdown(
     sellerNetCents,
   };
 }
+
+// ============================================
+// STORE SETTINGS API HELPERS
+// ============================================
+
+export async function getStoreIdentity(sellerId: string) {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/settings/identity`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch store identity');
+  }
+  return response.json();
+}
+
+export async function updateStoreIdentity(
+  sellerId: string,
+  data: {
+    displayName?: string;
+    logoUrl?: string | null;
+    bio?: string | null;
+    supportResponseTime?: string | null;
+    timezone?: string | null;
+    languages?: string[];
+  }
+) {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/settings/identity`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update store identity');
+  }
+  return response.json();
+}

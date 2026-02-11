@@ -158,23 +158,13 @@ export default function OrderDetailPage({
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
       // Success toast
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleCheck className="size-4" />
-            <span>Order claimed</span>
-          </div>
-        ),
+        title: "Order claimed",
         description: 'You have successfully claimed this order.',
       });
     },
     onError: (error) => {
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleX className="size-4" />
-            <span>Failed to claim order</span>
-          </div>
-        ),
+        title: "Failed to claim order",
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -224,23 +214,13 @@ export default function OrderDetailPage({
       setSelectedAssignee('');
       // Success toast
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleCheck className="size-4" />
-            <span>Order reassigned</span>
-          </div>
-        ),
+        title: "Order reassigned",
         description: `Order reassigned to ${member?.user.name || member?.user.email}`,
       });
     },
     onError: (error) => {
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleX className="size-4" />
-            <span>Failed to reassign order</span>
-          </div>
-        ),
+        title: "Failed to reassign order",
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -279,23 +259,13 @@ export default function OrderDetailPage({
       queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
       // Success toast
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleCheck className="size-4" />
-            <span>Order fulfilled</span>
-          </div>
-        ),
+        title: "Order fulfilled",
         description: 'Order has been marked as fulfilled.',
       });
     },
     onError: (error) => {
       toast({
-        title: (
-          <div className="flex items-center gap-2">
-            <CircleX className="size-4" />
-            <span>Failed to fulfill order</span>
-          </div>
-        ),
+        title: "Failed to fulfill order",
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });

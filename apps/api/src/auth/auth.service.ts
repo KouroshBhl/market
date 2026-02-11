@@ -404,12 +404,29 @@ export class AuthService {
       throw new ConflictException('Seller profile already exists');
     }
 
+    // Generate slug from displayName
+    const baseSlug = displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    // Ensure slug is unique by appending a number if needed
+    let slug = baseSlug;
+    let attempt = 1;
+    while (await prisma.sellerProfile.findUnique({ where: { slug } })) {
+      slug = `${baseSlug}-${attempt}`;
+      attempt++;
+    }
+
     // Create seller profile + OWNER membership in a transaction
     const profile = await prisma.$transaction(async (tx) => {
       const p = await tx.sellerProfile.create({
         data: {
           userId,
           displayName,
+          slug,
         },
       });
 
