@@ -88,7 +88,7 @@ export function PurchaseSummaryCard({
             <p className="text-xs text-muted-foreground">
               Sold by{" "}
               <span className="font-medium text-foreground">
-                {bestOffer.sellerName}
+                {bestOffer.sellerSlug}
               </span>
             </p>
           </div>

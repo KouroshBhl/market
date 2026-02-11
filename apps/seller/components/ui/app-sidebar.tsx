@@ -246,7 +246,7 @@ function SidebarTeamHeader() {
       <div className='px-1 flex items-start justify-between'>
         <div className='min-w-0'>
           <p className='text-sm font-semibold text-foreground truncate'>
-            {activeSeller?.sellerName ?? 'My Store'}
+            {activeSeller?.sellerDisplayName ?? activeSeller?.sellerSlug ?? 'My Store'}
           </p>
           <p className='text-xs text-muted-foreground'>
             {activeSeller?.role ? ROLE_LABELS[activeSeller.role] : ''}

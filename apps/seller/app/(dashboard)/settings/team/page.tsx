@@ -638,7 +638,7 @@ export default function TeamPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Manage who has access to{" "}
             <span className="font-medium text-foreground">
-              {activeSeller?.sellerName}
+              {activeSeller?.sellerDisplayName}
             </span>
           </p>
         </div>

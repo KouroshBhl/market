@@ -171,13 +171,14 @@ export class AuthService {
       email: user.email,
       role: user.role as AuthUser['role'],
       sellerId: user.sellerProfile?.id ?? null,
-      displayName: user.sellerProfile?.displayName ?? null,
+      displayName: user.sellerProfile?.sellerDisplayName ?? null,
       hasPassword: !!user.passwordHash,
       isEmailVerified: !!user.emailVerifiedAt,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       memberships: user.sellerTeamMemberships.map((m) => ({
         sellerId: m.sellerId,
-        sellerName: m.seller.displayName,
+        sellerSlug: m.seller.slug,
+        sellerDisplayName: m.seller.sellerDisplayName,
         role: m.role as 'OWNER' | 'ADMIN' | 'OPS' | 'CATALOG' | 'SUPPORT',
       })),
     };
@@ -425,7 +426,7 @@ export class AuthService {
       const p = await tx.sellerProfile.create({
         data: {
           userId,
-          displayName,
+          sellerDisplayName: displayName,
           slug,
         },
       });
@@ -446,7 +447,7 @@ export class AuthService {
     return {
       id: profile.id,
       userId: profile.userId,
-      displayName: profile.displayName,
+      displayName: profile.sellerDisplayName, // Return for backward compatibility
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
     };

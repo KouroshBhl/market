@@ -126,7 +126,8 @@ export type AuthTokensResponse = z.infer<typeof AuthTokensResponseSchema>;
 
 export const AuthUserMembershipSchema = z.object({
   sellerId: z.string().uuid(),
-  sellerName: z.string(),
+  sellerSlug: z.string(),
+  sellerDisplayName: z.string(),
   role: z.enum(['OWNER', 'ADMIN', 'OPS', 'CATALOG', 'SUPPORT']),
 });
 

@@ -781,6 +781,34 @@ Real-time team presence with 3 statuses computed server-side:
 | POST   | `/seller/:sellerId/presence/heartbeat`      | (membership) | Send heartbeat       |
 | GET    | `/seller/:sellerId/presence`                | (membership) | Get presence list    |
 
+### Store Public Identity
+
+**The store slug IS the public identity.** There is no separate "store name" — buyers identify stores by their URL handle.
+
+**Key rules:**
+
+- Slug is set at seller onboarding from the display name (auto-generated, lowercase, hyphenated)
+- Slug can be changed **exactly once** (tracked via `slugChangeCount`)
+- When changed, the old slug is saved in `StoreSlugHistory` for permanent 301 redirects
+- New slugs are validated against both current slugs AND historical slugs (globally unique)
+- `sellerDisplayName` is an internal-only name for the seller dashboard and team areas — it does NOT appear on buyer-facing pages
+- Buyer-facing pages show the slug/handle as the store identifier
+
+**Slug resolution (public route `/seller/:slug`):**
+
+1. If slug matches a current `SellerProfile.slug` → render store page
+2. If slug matches a `StoreSlugHistory.slug` → 301/308 redirect to current slug (preserving querystring)
+3. Otherwise → 404
+
+### Seller Identity API
+
+| Method | Path                                                | Permission    | Description                  |
+|--------|-----------------------------------------------------|---------------|------------------------------|
+| GET    | `/seller/:sellerId/settings/identity`               | (membership)  | Get store identity settings  |
+| PATCH  | `/seller/:sellerId/settings/identity`               | team.manage   | Update identity (not slug)   |
+| POST   | `/seller/:sellerId/settings/identity/change-slug`   | team.manage   | Change handle (one-time)     |
+| GET    | `/public/store/resolve/:slug`                       | (public)      | Resolve slug → current slug  |
+
 ### Future Expansion (TODO)
 
 - **Per-member permission overrides**: Add `permissionOverrides` column to SellerTeamMember. Merge with role defaults in `can()`. No other call-sites change.

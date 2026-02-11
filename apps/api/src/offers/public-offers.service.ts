@@ -38,14 +38,14 @@ export class PublicOffersService {
       orderBy: [{ priceAmount: 'asc' }, { publishedAt: 'asc' }],
     });
 
-    // Gather unique sellerIds and fetch display names in one query
+    // Gather unique sellerIds and fetch store slugs in one query
     const sellerIds = [...new Set(offers.map((o) => o.sellerId))];
     const sellerProfiles = await prisma.sellerProfile.findMany({
       where: { userId: { in: sellerIds } },
-      select: { userId: true, displayName: true },
+      select: { userId: true, slug: true },
     });
-    const sellerNameMap = new Map(
-      sellerProfiles.map((p) => [p.userId, p.displayName]),
+    const sellerSlugMap = new Map(
+      sellerProfiles.map((p) => [p.userId, p.slug]),
     );
 
     const mapped: PublicOffer[] = offers.map((offer) => {
@@ -65,8 +65,8 @@ export class PublicOffersService {
       return {
         id: offer.id,
         sellerId: offer.sellerId,
-        sellerName:
-          sellerNameMap.get(offer.sellerId) ?? `Seller ${offer.sellerId.slice(0, 6)}`,
+        sellerSlug:
+          sellerSlugMap.get(offer.sellerId) ?? `seller-${offer.sellerId.slice(0, 6)}`,
         deliveryType: offer.deliveryType as 'AUTO_KEY' | 'MANUAL',
         priceAmountCents: offer.priceAmount,
         currency: offer.currency,

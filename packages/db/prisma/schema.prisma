@@ -100,33 +100,43 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-enum SupportResponseTime {
-  UNDER_15_MIN
-  UNDER_1_HOUR
-  UNDER_24_HOURS
-}
-
 model SellerProfile {
-  id                  String               @id @default(uuid())
-  userId              String               @unique @map("user_id")
-  slug                String               @unique // Immutable store URL slug (derived from initial displayName)
-  displayName         String               @map("display_name")
-  logoUrl             String?              @map("logo_url")
-  bio                 String?              @db.Text
-  supportResponseTime SupportResponseTime? @map("support_response_time")
-  timezone            String?              // IANA timezone (e.g., "Europe/Istanbul")
-  languages           String[]             @default([]) // ISO language codes (e.g., ["en", "fa", "ru"])
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid())
+  userId             String    @unique @map("user_id")
+  slug               String    @unique // Current store URL slug — this IS the public identity
+  sellerDisplayName  String    @map("seller_display_name") // Internal name for dashboard/team
+  logoUrl            String?   @map("logo_url")
+  bio                String?   @db.Text // Markdown format
+  timezone           String?   // IANA timezone (e.g., "Europe/Istanbul")
+  slugChangeCount    Int       @default(0) @map("slug_change_count") // 0 = can change once
+  slugChangedAt      DateTime? @map("slug_changed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   members            SellerTeamMember[]
   invites            SellerInvite[]
   presences          SellerPresence[]
   gatewayPreferences SellerGatewayPreference[]
+  slugHistory        StoreSlugHistory[]
 
   @@index([slug])
   @@map("seller_profiles")
+}
+
+// Slug history — enables 301 redirects from old slugs to current
+// Global unique constraint: no two stores can ever use the same slug (current or historical)
+model StoreSlugHistory {
+  id        String   @id @default(uuid())
+  sellerId  String   @map("seller_id")
+  slug      String   @unique // Globally unique across current AND historical slugs
+  createdAt DateTime @default(now()) @map("created_at")
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([slug])
+  @@index([sellerId])
+  @@map("store_slug_history")
 }
 
 model AuthCode {

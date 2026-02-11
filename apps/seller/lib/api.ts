@@ -370,12 +370,10 @@ export async function getStoreIdentity(sellerId: string) {
 export async function updateStoreIdentity(
   sellerId: string,
   data: {
-    displayName?: string;
+    sellerDisplayName?: string;
     logoUrl?: string | null;
     bio?: string | null;
-    supportResponseTime?: string | null;
     timezone?: string | null;
-    languages?: string[];
   }
 ) {
   const response = await authedFetch(`${API_URL}/seller/${sellerId}/settings/identity`, {
@@ -386,6 +384,22 @@ export async function updateStoreIdentity(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to update store identity');
+  }
+  return response.json();
+}
+
+export async function changeStoreSlug(
+  sellerId: string,
+  newSlug: string
+) {
+  const response = await authedFetch(`${API_URL}/seller/${sellerId}/settings/identity/change-slug`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newSlug }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to change store URL');
   }
   return response.json();
 }

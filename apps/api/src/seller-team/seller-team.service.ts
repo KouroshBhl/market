@@ -123,7 +123,7 @@ export class SellerTeamService {
 
     // Send invite email (fire-and-forget — don't block the API response)
     const seller = await prisma.sellerProfile.findUnique({ where: { id: sellerId } });
-    const sellerName = seller?.displayName ?? 'your team';
+    const sellerName = seller?.slug ?? 'your team';
     const roleLabel = { ADMIN: 'Admin', OPS: 'Operations', CATALOG: 'Catalog Manager', SUPPORT: 'Support' }[role as string] ?? role;
 
     this.emailService
@@ -191,7 +191,8 @@ export class SellerTeamService {
         return {
           membership: {
             sellerId: invite.sellerId,
-            sellerName: invite.seller.displayName,
+            sellerSlug: invite.seller.slug,
+            sellerDisplayName: invite.seller.sellerDisplayName,
             role: existingMember.role as SellerTeamRole,
           },
         };
@@ -244,7 +245,8 @@ export class SellerTeamService {
     return {
       membership: {
         sellerId: invite.sellerId,
-        sellerName: invite.seller.displayName,
+        sellerSlug: invite.seller.slug,
+        sellerDisplayName: invite.seller.sellerDisplayName,
         role: effectiveRole as SellerTeamRole,
       },
     };
@@ -393,7 +395,7 @@ export class SellerTeamService {
 
     // Send email
     const seller = await prisma.sellerProfile.findUnique({ where: { id: sellerId } });
-    const sellerName = seller?.displayName ?? 'your team';
+    const sellerName = seller?.slug ?? 'your team';
     const roleLabel = { ADMIN: 'Admin', OPS: 'Operations', CATALOG: 'Catalog Manager', SUPPORT: 'Support' }[invite.role as string] ?? invite.role;
 
     this.emailService
@@ -421,7 +423,8 @@ export class SellerTeamService {
     return {
       memberships: memberships.map((m) => ({
         sellerId: m.sellerId,
-        sellerName: m.seller.displayName,
+        sellerSlug: m.seller.slug,
+        sellerDisplayName: m.seller.sellerDisplayName,
         role: m.role as SellerTeamRole,
       })),
     };

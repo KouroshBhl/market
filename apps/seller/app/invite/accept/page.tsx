@@ -55,7 +55,7 @@ export default function InviteAcceptPage() {
 
     acceptInvite(token)
       .then((result) => {
-        setSellerName(result.membership.sellerName);
+        setSellerName(result.membership.sellerDisplayName || result.membership.sellerSlug);
         setRole(result.membership.role);
         setState("success");
       })

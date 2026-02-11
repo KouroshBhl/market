@@ -40,9 +40,9 @@ export function OfferCard({
     `/chats?productId=${productId}&offerId=${offer.id}&sellerId=${offer.sellerId}`,
   );
 
-  // Generate initials from seller name
-  const initials = offer.sellerName
-    .split(" ")
+  // Generate initials from seller slug
+  const initials = offer.sellerSlug
+    .split("-")
     .map((w) => w[0])
     .join("")
     .toUpperCase()
@@ -75,7 +75,7 @@ export function OfferCard({
         <div className="flex-1 min-w-0 space-y-2">
           <div>
             <p className="text-sm font-medium text-foreground truncate">
-              {offer.sellerName}
+              {offer.sellerSlug}
             </p>
             <p className="text-xs text-muted-foreground">New seller</p>
           </div>

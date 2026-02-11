@@ -64,7 +64,7 @@ export interface ProductDetail {
 export interface PublicOffer {
   id: string;
   sellerId: string;
-  sellerName: string;
+  sellerSlug: string;
   deliveryType: 'AUTO_KEY' | 'MANUAL';
   priceAmountCents: number;
   currency: string;

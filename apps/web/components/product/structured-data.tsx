@@ -50,7 +50,7 @@ export function ProductStructuredData({
           price: (buyerTotal(o.priceAmountCents) / 100).toFixed(2),
           priceCurrency: o.currency,
           availability: "https://schema.org/InStock",
-          seller: { "@type": "Organization", name: o.sellerName },
+          seller: { "@type": "Organization", name: o.sellerSlug },
           ...(o.deliveryType === "MANUAL" &&
             o.estimatedDeliveryMinutes && {
               deliveryLeadTime: {

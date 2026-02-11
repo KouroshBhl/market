@@ -11,7 +11,8 @@ import { ROLE_PERMISSIONS } from "@/lib/permissions";
 
 interface SellerMembership {
   sellerId: string;
-  sellerName: string;
+  sellerSlug: string;
+  sellerDisplayName: string;
   role: SellerTeamRole;
 }
 
@@ -62,7 +63,8 @@ export function SellerProvider({ children }: { children: React.ReactNode }) {
       return [
         {
           sellerId: user.sellerId,
-          sellerName:
+          sellerSlug: "store",
+          sellerDisplayName:
             user.displayName || user.email?.split("@")[0] || "My Store",
           role: "OWNER" as SellerTeamRole,
         },

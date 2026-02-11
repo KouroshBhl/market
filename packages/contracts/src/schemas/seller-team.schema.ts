@@ -78,7 +78,8 @@ export type SellerInvite = z.infer<typeof SellerInviteSchema>;
 
 export const SellerMembershipSchema = z.object({
   sellerId: z.string().uuid(),
-  sellerName: z.string(),
+  sellerSlug: z.string(),
+  sellerDisplayName: z.string(), // Internal name for dashboard
   role: SellerTeamRoleSchema,
 });
 

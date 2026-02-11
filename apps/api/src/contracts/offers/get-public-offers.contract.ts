@@ -4,7 +4,7 @@ import type { ApiContract } from '../base';
 const PublicOfferSchema = z.object({
   id: z.string().uuid(),
   sellerId: z.string().uuid(),
-  sellerName: z.string(),
+  sellerSlug: z.string(),
   deliveryType: z.enum(['AUTO_KEY', 'MANUAL']),
   priceAmountCents: z.number().int(),
   currency: z.string(),

@@ -6,8 +6,6 @@ import {
   Button,
   Input,
   Label,
-  Textarea,
-  Select,
   Alert,
   Skeleton,
   SidebarTrigger,
@@ -18,12 +16,19 @@ import {
   BreadcrumbLink,
   BreadcrumbPage,
   BreadcrumbSeparator,
-  Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  TimezoneCombobox,
+  MarkdownEditor,
 } from "@workspace/ui";
 import { useToast } from "@workspace/ui/hooks/use-toast";
 import { useSeller } from "@/components/seller-provider";
-import { getStoreIdentity, updateStoreIdentity } from "@/lib/api";
-import { Lock, Save } from "lucide-react";
+import { getStoreIdentity, updateStoreIdentity, changeStoreSlug } from "@/lib/api";
+import { Lock, Save, AlertTriangle, ExternalLink } from "lucide-react";
 
 // ============================================
 // Types
@@ -32,53 +37,155 @@ import { Lock, Save } from "lucide-react";
 interface StoreIdentity {
   id: string;
   slug: string;
-  displayName: string;
+  sellerDisplayName: string;
   logoUrl: string | null;
   bio: string | null;
-  supportResponseTime: string | null;
   timezone: string | null;
-  languages: string[];
+  slugChangeCount: number;
+  slugChangedAt: string | null;
+  canChangeSlug: boolean;
 }
 
 // ============================================
-// Constants
+// Change Slug Modal
 // ============================================
 
-const SUPPORT_RESPONSE_TIMES = [
-  { value: "UNDER_15_MIN", label: "Under 15 minutes" },
-  { value: "UNDER_1_HOUR", label: "Under 1 hour" },
-  { value: "UNDER_24_HOURS", label: "Under 24 hours" },
-];
+function ChangeSlugModal({
+  open,
+  onOpenChange,
+  currentSlug,
+  sellerId,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentSlug: string;
+  sellerId: string;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const [newSlug, setNewSlug] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-const COMMON_TIMEZONES = [
-  { value: "America/New_York", label: "Eastern Time (US)" },
-  { value: "America/Chicago", label: "Central Time (US)" },
-  { value: "America/Denver", label: "Mountain Time (US)" },
-  { value: "America/Los_Angeles", label: "Pacific Time (US)" },
-  { value: "Europe/London", label: "London (GMT)" },
-  { value: "Europe/Paris", label: "Paris (CET)" },
-  { value: "Europe/Istanbul", label: "Istanbul (TRT)" },
-  { value: "Asia/Dubai", label: "Dubai (GST)" },
-  { value: "Asia/Tehran", label: "Tehran (IRST)" },
-  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
-  { value: "Australia/Sydney", label: "Sydney (AEDT)" },
-];
+  function reset() {
+    setNewSlug("");
+    setError(null);
+    setIsSubmitting(false);
+  }
 
-const COMMON_LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "fa", label: "Persian (Farsi)" },
-  { value: "ar", label: "Arabic" },
-  { value: "tr", label: "Turkish" },
-  { value: "ru", label: "Russian" },
-  { value: "uk", label: "Ukrainian" },
-  { value: "de", label: "German" },
-  { value: "fr", label: "French" },
-  { value: "es", label: "Spanish" },
-  { value: "pt", label: "Portuguese" },
-  { value: "zh", label: "Chinese" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-];
+  function handleOpenChange(next: boolean) {
+    if (!next) reset();
+    onOpenChange(next);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await changeStoreSlug(sellerId, newSlug.toLowerCase().trim());
+      toast({
+        title: "Store handle changed",
+        description: `Your store is now at vendorsgg.com/seller/${newSlug}. Old links will redirect automatically.`,
+      });
+      handleOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change store handle");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            Change Store Handle (One Time Only)
+          </DialogTitle>
+          <DialogDescription>
+            Your store handle is your public identity. This change can only be done <strong>once</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <div className="ml-2">
+              <p className="text-sm font-medium">Before you change your handle:</p>
+              <ul className="text-sm text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+                <li>This is your <strong>public identity</strong> — buyers know you by this handle</li>
+                <li>You can only change this <strong>once</strong></li>
+                <li>Old links will automatically redirect to your new handle</li>
+                <li>Choose carefully — this cannot be undone</li>
+              </ul>
+            </div>
+          </Alert>
+
+          {error && (
+            <Alert variant="destructive">
+              <p className="text-sm">{error}</p>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-slug">Current Handle</Label>
+              <Input
+                id="current-slug"
+                type="text"
+                value={`vendorsgg.com/seller/${currentSlug}`}
+                readOnly
+                disabled
+                className="font-mono text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-slug">New Handle</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">vendorsgg.com/seller/</span>
+                <Input
+                  id="new-slug"
+                  type="text"
+                  value={newSlug}
+                  onChange={(e) => setNewSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  placeholder="my-store"
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  className="font-mono text-sm"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                3-30 characters. Lowercase letters, numbers, and hyphens. No leading/trailing/consecutive hyphens.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting || !newSlug.trim()}>
+                {isSubmitting ? "Changing..." : "Change Handle Permanently"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ============================================
 // Page Shell
@@ -121,17 +228,27 @@ export default function IdentitySettingsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
+  const [changeSlugOpen, setChangeSlugOpen] = React.useState(false);
 
   // Form state
-  const [displayName, setDisplayName] = React.useState("");
+  const [sellerDisplayName, setSellerDisplayName] = React.useState("");
   const [logoUrl, setLogoUrl] = React.useState("");
   const [bio, setBio] = React.useState("");
-  const [supportResponseTime, setSupportResponseTime] = React.useState("");
-  const [timezone, setTimezone] = React.useState("");
-  const [selectedLanguages, setSelectedLanguages] = React.useState<string[]>([]);
+  const [timezone, setTimezone] = React.useState<string | null>(null);
 
   const sellerId = activeSeller?.sellerId;
   const canManage = hasPermission("team.manage");
+
+  // Track if form has changes
+  const hasChanges = React.useMemo(() => {
+    if (!identity) return false;
+    return (
+      sellerDisplayName !== identity.sellerDisplayName ||
+      logoUrl !== (identity.logoUrl || "") ||
+      bio !== (identity.bio || "") ||
+      timezone !== identity.timezone
+    );
+  }, [identity, sellerDisplayName, logoUrl, bio, timezone]);
 
   // Fetch identity
   const fetchIdentity = React.useCallback(async () => {
@@ -145,12 +262,10 @@ export default function IdentitySettingsPage() {
     try {
       const data = await getStoreIdentity(sellerId);
       setIdentity(data);
-      setDisplayName(data.displayName);
+      setSellerDisplayName(data.sellerDisplayName);
       setLogoUrl(data.logoUrl || "");
       setBio(data.bio || "");
-      setSupportResponseTime(data.supportResponseTime || "");
-      setTimezone(data.timezone || "");
-      setSelectedLanguages(data.languages || []);
+      setTimezone(data.timezone);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
@@ -171,12 +286,10 @@ export default function IdentitySettingsPage() {
 
     try {
       await updateStoreIdentity(sellerId, {
-        displayName: displayName.trim(),
+        sellerDisplayName: sellerDisplayName.trim(),
         logoUrl: logoUrl.trim() || null,
         bio: bio.trim() || null,
-        supportResponseTime: supportResponseTime || null,
-        timezone: timezone || null,
-        languages: selectedLanguages,
+        timezone: timezone,
       });
 
       toast({
@@ -196,14 +309,7 @@ export default function IdentitySettingsPage() {
     }
   }
 
-  // Toggle language selection
-  function toggleLanguage(langCode: string) {
-    setSelectedLanguages((prev) =>
-      prev.includes(langCode) ? prev.filter((l) => l !== langCode) : [...prev, langCode]
-    );
-  }
-
-  // ---- Loading states ----
+  // ---- Loading ----
   if (sellerLoading || isLoading) {
     return (
       <IdentityPageShell>
@@ -217,7 +323,6 @@ export default function IdentitySettingsPage() {
     );
   }
 
-  // ---- No seller profile ----
   if (!sellerId) {
     return (
       <IdentityPageShell>
@@ -232,7 +337,6 @@ export default function IdentitySettingsPage() {
     );
   }
 
-  // ---- Fetch error ----
   if (fetchError) {
     return (
       <IdentityPageShell>
@@ -241,15 +345,12 @@ export default function IdentitySettingsPage() {
           <Alert variant="destructive" className="mb-4">
             <p className="text-sm">{fetchError}</p>
           </Alert>
-          <Button variant="outline" onClick={fetchIdentity}>
-            Retry
-          </Button>
+          <Button variant="outline" onClick={fetchIdentity}>Retry</Button>
         </Card>
       </IdentityPageShell>
     );
   }
 
-  // ---- No permission ----
   if (!canManage) {
     return (
       <IdentityPageShell>
@@ -266,74 +367,112 @@ export default function IdentitySettingsPage() {
 
   return (
     <IdentityPageShell>
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Store Identity</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your store's public identity and contact information.
+          Your store handle is your public identity. Buyers find you by this URL.
         </p>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSave} className="space-y-6">
-        {/* Store URL (read-only) */}
+        {/* ── Store Handle / URL ── */}
         <Card className="p-6 space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-base font-semibold text-foreground">Store URL</h2>
+              <h2 className="text-base font-semibold text-foreground">Store Handle</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Your store's permanent URL. This cannot be changed.
+                This is your public identity on the marketplace. Buyers see this in URLs and store pages.
               </p>
             </div>
             <Lock className="h-5 w-5 text-muted-foreground" />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="slug">Store URL</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="slug"
-                type="text"
-                value={`vendorsgg.com/seller/${identity?.slug || ""}`}
-                readOnly
-                disabled
-                className="font-mono text-sm"
-              />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="slug">Store URL</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="slug"
+                  type="text"
+                  value={`vendorsgg.com/seller/${identity?.slug || ""}`}
+                  readOnly
+                  disabled
+                  className="font-mono text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => window.open(`https://vendorsgg.com/seller/${identity?.slug}`, "_blank")}
+                  title="View store"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            {identity?.canChangeSlug ? (
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setChangeSlugOpen(true)}
+                  className="w-full sm:w-auto"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Change Handle (One Time Only)
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  You can change your store handle once. Old links will redirect automatically.
+                </p>
+              </div>
+            ) : (
+              <Alert>
+                <Lock className="h-4 w-4" />
+                <p className="text-sm ml-2">
+                  Handle was changed on {identity?.slugChangedAt ? new Date(identity.slugChangedAt).toLocaleDateString() : "a previous date"}. No further changes allowed. Old links redirect automatically.
+                </p>
+              </Alert>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Internal Display Name ── */}
+        <Card className="p-6 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Seller Display Name</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your internal name shown in the seller dashboard and team areas. This does not affect your public store URL or how buyers see you.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sellerDisplayName">Display Name</Label>
+            <Input
+              id="sellerDisplayName"
+              type="text"
+              value={sellerDisplayName}
+              onChange={(e) => setSellerDisplayName(e.target.value)}
+              required
+              minLength={2}
+              maxLength={100}
+              placeholder="Your name or team name"
+            />
             <p className="text-xs text-muted-foreground">
-              Store URL cannot be changed.
+              You can change this anytime. 2-100 characters.
             </p>
           </div>
         </Card>
 
-        {/* Editable fields */}
+        {/* ── Branding ── */}
         <Card className="p-6 space-y-4">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Basic Information</h2>
+            <h2 className="text-base font-semibold text-foreground">Branding</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Public information about your store.
+              Visual identity for your store page.
             </p>
           </div>
 
-          {/* Display Name */}
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Display Name</Label>
-            <Input
-              id="displayName"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-              minLength={2}
-              maxLength={100}
-              placeholder="My Awesome Store"
-            />
-            <p className="text-xs text-muted-foreground">
-              Your store's public name. Does not affect the URL.
-            </p>
-          </div>
-
-          {/* Logo URL */}
           <div className="space-y-2">
             <Label htmlFor="logoUrl">Logo URL</Label>
             <Input
@@ -344,107 +483,72 @@ export default function IdentitySettingsPage() {
               placeholder="https://example.com/logo.png"
             />
             <p className="text-xs text-muted-foreground">
-              Direct link to your store logo image.
+              Direct image link (PNG/JPG/WebP). Image upload coming soon.
             </p>
           </div>
 
-          {/* Bio */}
           <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
-            <Textarea
+            <Label htmlFor="bio">Store Bio</Label>
+            <MarkdownEditor
               id="bio"
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={300}
-              rows={4}
+              onChange={setBio}
               placeholder="Tell buyers about your store..."
+              maxLength={2000}
+              rows={6}
             />
-            <p className="text-xs text-muted-foreground">
-              {bio.length}/300 characters
-            </p>
           </div>
         </Card>
 
-        {/* Support & Communication */}
+        {/* ── Settings ── */}
         <Card className="p-6 space-y-4">
           <div>
-            <h2 className="text-base font-semibold text-foreground">
-              Support & Communication
-            </h2>
+            <h2 className="text-base font-semibold text-foreground">Settings</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Help buyers know what to expect.
+              Regional and operational settings.
             </p>
           </div>
 
-          {/* Support Response Time */}
-          <div className="space-y-2">
-            <Label htmlFor="supportResponseTime">Support Response Time</Label>
-            <Select
-              id="supportResponseTime"
-              value={supportResponseTime}
-              onChange={(e) => setSupportResponseTime(e.target.value)}
-            >
-              <option value="">Not specified</option>
-              {SUPPORT_RESPONSE_TIMES.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Average time to respond to buyer inquiries.
-            </p>
-          </div>
-
-          {/* Timezone */}
           <div className="space-y-2">
             <Label htmlFor="timezone">Timezone</Label>
-            <Select
+            <TimezoneCombobox
               id="timezone"
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-            >
-              <option value="">Not specified</option>
-              {COMMON_TIMEZONES.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
+              onChange={setTimezone}
+              placeholder="Select your timezone..."
+            />
             <p className="text-xs text-muted-foreground">
               Your primary business timezone.
             </p>
           </div>
-
-          {/* Languages */}
-          <div className="space-y-2">
-            <Label>Languages Supported</Label>
-            <div className="flex flex-wrap gap-2">
-              {COMMON_LANGUAGES.map((lang) => (
-                <Badge
-                  key={lang.value}
-                  variant={selectedLanguages.includes(lang.value) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => toggleLanguage(lang.value)}
-                >
-                  {lang.label}
-                </Badge>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Click to select languages you can support.
-            </p>
-          </div>
         </Card>
 
-        {/* Save button */}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSaving}>
+        {/* ── Save ── */}
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={fetchIdentity}
+            disabled={!hasChanges || isSaving}
+          >
+            Reset
+          </Button>
+          <Button type="submit" disabled={!hasChanges || isSaving}>
             <Save className="h-4 w-4 mr-2" />
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </form>
+
+      {identity && (
+        <ChangeSlugModal
+          open={changeSlugOpen}
+          onOpenChange={setChangeSlugOpen}
+          currentSlug={identity.slug}
+          sellerId={sellerId}
+          onSuccess={fetchIdentity}
+        />
+      )}
     </IdentityPageShell>
   );
 }
